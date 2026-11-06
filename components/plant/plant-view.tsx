@@ -8,11 +8,15 @@ import { useWorldHits } from "@/hooks/use-world-hits"
 import { FloorPlan } from "@/components/plant/floor-plan"
 import { PlantSearch } from "@/components/plant/plant-search"
 import { RoomNote } from "@/components/plant/room-note"
+import { ViewSwitch } from "@/components/parts/view-switch"
 
 const SKIP_SLASH_INSIDE = "input, textarea, select, [contenteditable='true']"
 
-export function PlantView({ q }: { q: string }) {
-  const [noteRoom, setNoteRoom] = React.useState<RoomId | null>(null)
+export function PlantView({ q, pin = null }: { q: string; pin?: RoomId | null }) {
+  // A pinned room arrives from a list location link: open its note straight away.
+  const [noteRoom, setNoteRoom] = React.useState<RoomId | null>(pin)
+  const noteRef = React.useRef(noteRoom)
+  noteRef.current = noteRoom
   const inputRef = React.useRef<HTMLInputElement>(null)
   const worldHits = useWorldHits(q)
   const { groups, options } = React.useMemo(() => searchPlant(q, worldHits), [q, worldHits])
@@ -54,7 +58,9 @@ export function PlantView({ q }: { q: string }) {
         inputRef.current?.focus()
         inputRef.current?.select()
       } else if (e.key === "Escape" && !inField) {
-        setNoteRoom(null)
+        // One level at a time: close the note, then back to the list.
+        if (noteRef.current) setNoteRoom(null)
+        else navigate({ level: "parts", q: new URLSearchParams(window.location.search).get("q") ?? "" })
       }
     }
     window.addEventListener("keydown", onKeyDown)
@@ -63,16 +69,19 @@ export function PlantView({ q }: { q: string }) {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="relative z-20 flex flex-col items-center gap-1 px-4 pt-5 pb-2">
+      <header className="relative z-20 flex items-start gap-2 px-4 pt-5 pb-2">
         <h1 className="sr-only">world-parts — plant overview</h1>
-        <PlantSearch
-          q={q}
-          onQuery={setQuery}
-          groups={groups}
-          options={options}
-          onOpen={openOption}
-          inputRef={inputRef}
-        />
+        <div className="flex min-w-0 flex-1 justify-center">
+          <PlantSearch
+            q={q}
+            onQuery={setQuery}
+            groups={groups}
+            options={options}
+            onOpen={openOption}
+            inputRef={inputRef}
+          />
+        </div>
+        <ViewSwitch view="plant" q={q} />
       </header>
 
       <main className="relative min-h-0 flex-1">

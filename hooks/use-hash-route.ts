@@ -3,18 +3,25 @@
 import * as React from "react"
 import { ROOMS, type RoomId } from "@/lib/data"
 
+/** Level 0 parts list (default) · Level 1 plan · Level 2 room. */
 export type Route =
-  | { level: "plant"; q: string }
-  | { level: "room"; room: RoomId; object: string | null; q: string }
+  | { level: "parts"; q: string; part?: string | null }
+  | { level: "plant"; q: string; pin?: RoomId | null }
+  | { level: "room"; room: RoomId; object: string | null; part?: string | null; q: string }
 
 export const ROUTE_EVENT = "world-parts:routechange"
 
 export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search)
   const q = params.get("q") ?? ""
+  const part = params.get("part")
   const room = ROOMS.find((r) => r.id === params.get("room") && r.scanned)
-  if (room) return { level: "room", room: room.id, object: params.get("object"), q }
-  return { level: "plant", q }
+  if (room) return { level: "room", room: room.id, object: params.get("object"), part, q }
+  if (params.get("view") === "plant") {
+    const pin = ROOMS.find((r) => r.id === params.get("pin"))?.id ?? null
+    return { level: "plant", q, pin }
+  }
+  return { level: "parts", q, part }
 }
 
 export function formatRoute(route: Route): string {
@@ -22,6 +29,12 @@ export function formatRoute(route: Route): string {
   if (route.level === "room") {
     params.set("room", route.room)
     if (route.object) params.set("object", route.object)
+    if (route.part) params.set("part", route.part)
+  } else if (route.level === "plant") {
+    params.set("view", "plant")
+    if (route.pin) params.set("pin", route.pin)
+  } else if (route.part) {
+    params.set("part", route.part)
   }
   if (route.q.trim()) params.set("q", route.q.trim())
   const body = params.toString()
@@ -34,6 +47,7 @@ function migrateLegacyHash() {
   const hash = window.location.hash.slice(1)
   if (!hash.includes("=") && hash !== "plant") return
   const legacy = new URLSearchParams(hash.replace(/^plant&?/, ""))
+  if (hash.startsWith("plant") && !legacy.has("room")) legacy.set("view", "plant")
   const route = parseRoute(legacy.toString())
   window.history.replaceState(null, "", `${window.location.pathname}${formatRoute(route)}`)
 }
