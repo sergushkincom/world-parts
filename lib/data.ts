@@ -370,7 +370,7 @@ export const PARTS: Part[] = [
     name: "Centrifugal pump 2.2 kW",
     description: "End-suction coolant pump, cast iron, DN40 flange",
     keywords: ["pump", "coolant"],
-    supplier: "Grundfos via Hahn Industrie",
+    supplier: "Supplier A",
     unitPrice: 1240,
     idleSince: null,
     similar: [
@@ -383,7 +383,7 @@ export const PARTS: Part[] = [
     name: "Centrifugal pump 2.2 kW, stainless",
     description: "Stainless variant of PMP-2041 for aggressive coolants",
     keywords: ["pump", "coolant", "stainless"],
-    supplier: "Grundfos via Hahn Industrie",
+    supplier: "Supplier A",
     unitPrice: 1690,
     idleSince: "2026-06-02",
     similar: [
@@ -396,7 +396,7 @@ export const PARTS: Part[] = [
     name: "Centrifugal pump 1.8 kW",
     description: "Previous coolant pump generation, kept as a fallback",
     keywords: ["pump"],
-    supplier: "Hahn Industrie",
+    supplier: "Supplier A",
     unitPrice: 880,
     idleSince: "2025-12-15",
     similar: [
@@ -409,7 +409,7 @@ export const PARTS: Part[] = [
     name: "Ball valve DN25",
     description: "Brass ball valve, lever handle, PN40",
     keywords: ["valve", "ball valve"],
-    supplier: "Würth",
+    supplier: "Supplier B",
     unitPrice: 46,
     idleSince: null,
     similar: [
@@ -422,7 +422,7 @@ export const PARTS: Part[] = [
     name: "Ball valve DN25, FKM seal",
     description: "VLV-1180 with FKM seals for oil lines",
     keywords: ["valve", "ball valve"],
-    supplier: "Würth",
+    supplier: "Supplier B",
     unitPrice: 58,
     idleSince: "2026-08-20",
     similar: [
@@ -435,7 +435,7 @@ export const PARTS: Part[] = [
     name: "Ball valve DN20",
     description: "Brass ball valve, lever handle, PN40",
     keywords: ["valve"],
-    supplier: "Würth",
+    supplier: "Supplier B",
     unitPrice: 38,
     idleSince: null,
     similar: [
@@ -448,7 +448,7 @@ export const PARTS: Part[] = [
     name: "Induction motor 4 kW",
     description: "IE3 three-phase motor, B3 foot mount, 1450 rpm",
     keywords: ["motor", "drive"],
-    supplier: "Siemens via Rexel",
+    supplier: "Supplier C",
     unitPrice: 610,
     idleSince: null,
     similar: [
@@ -461,7 +461,7 @@ export const PARTS: Part[] = [
     name: "Induction motor 4 kW, flange",
     description: "MTR-3300 with B5 flange mount",
     keywords: ["motor", "drive"],
-    supplier: "Siemens via Rexel",
+    supplier: "Supplier C",
     unitPrice: 655,
     idleSince: null,
     similar: [
@@ -474,7 +474,7 @@ export const PARTS: Part[] = [
     name: "CO₂ extinguisher 5 kg",
     description: "Class B fire extinguisher, wall bracket included",
     keywords: ["extinguisher", "fire"],
-    supplier: "Gloria",
+    supplier: "Supplier B",
     unitPrice: 129,
     idleSince: null,
     similar: [
@@ -487,7 +487,7 @@ export const PARTS: Part[] = [
     name: "Hydraulic hose 1/2″, 2 m",
     description: "2SN hose assembly, JIC fittings both ends",
     keywords: ["hose", "hydraulic"],
-    supplier: "Parker via Hansa-Flex",
+    supplier: "Supplier C",
     unitPrice: 74,
     idleSince: null,
     similar: [
@@ -500,7 +500,7 @@ export const PARTS: Part[] = [
     name: "Tool cabinet, 6 drawers",
     description: "Steel workshop cabinet, lockable, 120 kg drawer load",
     keywords: ["cabinet", "drawer"],
-    supplier: "Bott",
+    supplier: "Supplier B",
     unitPrice: 890,
     idleSince: "2026-03-11",
     similar: [
@@ -511,9 +511,9 @@ export const PARTS: Part[] = [
   {
     number: "PLT-1200",
     name: "Euro pallet 1200 × 800",
-    description: "EPAL wooden pallet, 1500 kg load",
+    description: "Wooden pallet, 1500 kg load",
     keywords: ["pallet"],
-    supplier: "Palettenwerk",
+    supplier: "Supplier A",
     unitPrice: 14,
     idleSince: null,
     similar: [
