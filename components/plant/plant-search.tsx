@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { SearchIcon, XIcon } from "lucide-react"
-import { COPY, PLANT_STATS, SUGGESTED_CONCEPTS } from "@/lib/data"
+import { COPY, PARTS_SUMMARY, PLANT_STATS, SUGGESTED_CONCEPTS } from "@/lib/data"
 import { isSearchable, type RoomResults, type SearchOption } from "@/lib/search"
 import { cn } from "@/lib/utils"
 import { useWorld } from "@/components/world/world-provider"
@@ -128,7 +128,7 @@ export function PlantSearch({
       {!searching && (
         state.hydrated ? (
           <p className="text-center text-label text-muted-foreground">
-            {`${PLANT_STATS.roomsScanned} of ${PLANT_STATS.roomsTotal} rooms scanned · ${state.objects.length} objects in world · ${PLANT_STATS.partsInInventory} parts in inventory`}
+            {`${PLANT_STATS.roomsScanned} of ${PLANT_STATS.roomsTotal} rooms scanned · ${state.objects.length} objects in world · ${PARTS_SUMMARY}`}
           </p>
         ) : (
           <Skeleton aria-hidden className="mx-auto h-4 w-72" />

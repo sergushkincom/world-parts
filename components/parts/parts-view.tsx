@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { PackageSearchIcon, SearchIcon, TriangleAlertIcon, XIcon } from "lucide-react"
-import { COPY, PARTS, WORLD_ROOM, ROOMS } from "@/lib/data"
+import { COPY, PARTS, PARTS_SUMMARY, WORLD_ROOM, ROOMS } from "@/lib/data"
 import { validateParts } from "@/lib/parts"
 import { PART_FILTERS, matchesQuery, sortParts, type PartFilter, type Sort, type SortKey } from "@/lib/parts-list"
 import { navigate } from "@/hooks/use-hash-route"
@@ -148,7 +148,8 @@ export function PartsView({ q, part }: { q: string; part: string | null }) {
             ))}
           </ToggleGroup>
           <p aria-live="polite" className="text-label text-muted-foreground">
-            {hydrated && `${visible.length} of ${PARTS.length} parts`}
+            {hydrated &&
+              (visible.length === PARTS.length ? PARTS_SUMMARY : `${visible.length} of ${PARTS_SUMMARY}`)}
           </p>
         </div>
       </header>

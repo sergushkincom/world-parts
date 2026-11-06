@@ -610,8 +610,12 @@ export const PARTS: Part[] = PART_RECORDS.map((p) => ({
 export const PLANT_STATS = {
   roomsScanned: ROOMS.filter((r) => r.scanned).length,
   roomsTotal: ROOMS.length,
-  partsInInventory: PARTS.reduce((sum, p) => sum + p.stock, 0),
+  partRecords: PARTS.length,
+  unitsInStock: PARTS.reduce((sum, p) => sum + p.stock, 0),
 } as const
+
+/** The one way part totals are worded: records, then units across all locations. */
+export const PARTS_SUMMARY = `${PLANT_STATS.partRecords} parts · ${PLANT_STATS.unitsInStock} units`
 
 /** Minimum characters before the search runs. */
 export const SEARCH_MIN_CHARS = 2
