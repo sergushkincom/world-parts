@@ -24,7 +24,8 @@ export function BackToPlant({ q }: { q: string }) {
 
 /** Small floor plan with this room highlighted and the camera position; click to go back up. */
 export function RoomMinimap({ roomId, q }: { roomId: RoomId; q: string }) {
-  const room = getRoom(roomId)
+  const room = getRoom(roomId) as ReturnType<typeof getRoom> | undefined
+  if (!room) return null
   const [cx, cy] = PLAN.camera
   return (
     <button
