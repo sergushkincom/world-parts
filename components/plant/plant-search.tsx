@@ -130,13 +130,13 @@ export function PlantSearch({
       </div>
 
       {!searching && (
-        <p className="text-center text-label text-muted-foreground">
-          {state.hydrated ? (
-            `${PLANT_STATS.roomsScanned} of ${PLANT_STATS.roomsTotal} rooms scanned · ${state.objects.length} objects in world · ${PLANT_STATS.partsInInventory} parts in inventory`
-          ) : (
-            <Skeleton className="mx-auto h-4 w-72" />
-          )}
-        </p>
+        state.hydrated ? (
+          <p className="text-center text-label text-muted-foreground">
+            {`${PLANT_STATS.roomsScanned} of ${PLANT_STATS.roomsTotal} rooms scanned · ${state.objects.length} objects in world · ${PLANT_STATS.partsInInventory} parts in inventory`}
+          </p>
+        ) : (
+          <Skeleton aria-hidden className="mx-auto h-4 w-72" />
+        )
       )}
 
       {searching && !showResults && (

@@ -28,11 +28,29 @@ export function formatRoute(route: Route): string {
   return body ? `?${body}` : ""
 }
 
+// Links from the earlier hash-based routing (`#room=workshop&q=pump`) would leave an
+// invalid-selector hash in the URL; move those params into the query string once on load.
+function migrateLegacyHash() {
+  const hash = window.location.hash.slice(1)
+  if (!hash.includes("=") && hash !== "plant") return
+  const legacy = new URLSearchParams(hash.replace(/^plant&?/, ""))
+  const route = parseRoute(legacy.toString())
+  window.history.replaceState(null, "", `${window.location.pathname}${formatRoute(route)}`)
+}
+
+if (typeof window !== "undefined") migrateLegacyHash()
+
 function subscribe(onChange: () => void) {
+  const onHashChange = () => {
+    migrateLegacyHash()
+    onChange()
+  }
   window.addEventListener("popstate", onChange)
+  window.addEventListener("hashchange", onHashChange)
   window.addEventListener(ROUTE_EVENT, onChange)
   return () => {
     window.removeEventListener("popstate", onChange)
+    window.removeEventListener("hashchange", onHashChange)
     window.removeEventListener(ROUTE_EVENT, onChange)
   }
 }
