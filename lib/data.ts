@@ -115,10 +115,16 @@ export const COPY = {
   gaussianDisabled: "Select an object to apply a Gaussian view.",
 } as const
 
-export const GAUSSIAN_VIEWS: { id: GaussianView; label: string; key: string; description: string }[] = [
-  { id: "highlight", label: "Highlight", key: "1", description: "Outline the selection, keep the rest." },
-  { id: "recolor", label: "Recolor + dim rest", key: "2", description: "Fill the selection, dim everything else." },
-  { id: "isolate", label: "Isolate", key: "3", description: "Show only the selected splats." },
+export const GAUSSIAN_VIEWS: { id: GaussianView; label: string; fullLabel: string; key: string; description: string }[] = [
+  { id: "highlight", label: "Highlight", fullLabel: "Highlight", key: "1", description: "Outline the selection, keep the rest." },
+  {
+    id: "recolor",
+    label: "Recolor + dim",
+    fullLabel: "Recolor + dim rest",
+    key: "2",
+    description: "Fill the selection, dim everything else.",
+  },
+  { id: "isolate", label: "Isolate", fullLabel: "Isolate", key: "3", description: "Show only the selected splats." },
 ]
 
 export const LAYOUT = {

@@ -3,6 +3,7 @@
 import { COPY, GAUSSIAN_VIEWS, type GaussianView } from "@/lib/data"
 import { useWorld } from "@/components/world/world-provider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export function GaussianViewControl() {
   const { state } = useWorld()
@@ -36,17 +37,22 @@ export function GaussianViewControl() {
         className="w-full"
       >
         {GAUSSIAN_VIEWS.map((v) => (
-          <ToggleGroupItem
-            key={v.id}
-            value={v.id}
-            aria-keyshortcuts={v.key}
-            className="h-auto min-h-8 flex-1 gap-1.5 px-1.5 py-1 text-xs leading-tight whitespace-normal"
-          >
-            {v.label}
-            <span aria-hidden className="text-[0.625rem] text-muted-foreground tabular-nums">
-              {v.key}
-            </span>
-          </ToggleGroupItem>
+          <Tooltip key={v.id}>
+            <TooltipTrigger asChild>
+              <ToggleGroupItem
+                value={v.id}
+                aria-label={v.fullLabel}
+                aria-keyshortcuts={v.key}
+                className="h-8 min-w-0 flex-1 gap-1.5 px-1.5 text-xs whitespace-nowrap"
+              >
+                {v.label}
+                <span aria-hidden className="text-[0.625rem] text-muted-foreground tabular-nums">
+                  {v.key}
+                </span>
+              </ToggleGroupItem>
+            </TooltipTrigger>
+            <TooltipContent side="top">{`${v.fullLabel} · ${v.key}`}</TooltipContent>
+          </Tooltip>
         ))}
       </ToggleGroup>
       <p id={hintId} className="text-label text-muted-foreground">
