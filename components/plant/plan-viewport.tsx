@@ -18,6 +18,20 @@ function fitView({ w, h }: ViewportSize): PlanView {
   return { s, x: (w - PLAN.width * s) / 2, y: (h - PLAN.height * s) / 2 }
 }
 
+const FILL_BELOW = 600
+
+/**
+ * Starting view. On narrow portrait screens the whole plan is a thin strip, so it opens filling
+ * the available height and pans sideways; pinching out still reaches the whole-plan fit.
+ */
+function initialView(size: ViewportSize): PlanView {
+  const fit = fitView(size)
+  if (size.w >= FILL_BELOW) return fit
+  const fill = Math.min(fit.s * PLAN.maxZoom, (size.h - FIT_PAD * 2) / PLAN.height)
+  if (fill <= fit.s) return fit
+  return clampView({ s: fill, x: (size.w - PLAN.width * fill) / 2, y: (size.h - PLAN.height * fill) / 2 }, size)
+}
+
 function clampAxis(offset: number, content: number, viewport: number) {
   if (content <= viewport) return (viewport - content) / 2
   return Math.min(0, Math.max(viewport - content, offset))
@@ -45,8 +59,8 @@ const mid = (a: Pt, b: Pt): Pt => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
 const dist = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y)
 
 /**
- * Pinch-to-zoom / drag-to-pan container for the floor plan. Starts fitted to the whole plan;
- * double-tap (or double-click) resets. `layer` is drawn in plan pixels and transformed;
+ * Pinch-to-zoom / drag-to-pan container for the floor plan. Starts fitted to the whole plan
+ * (filling the height on narrow screens); double-tap (or double-click) resets. `layer` is drawn in plan pixels and transformed;
  * `overlay` gets the live view so it can place screen-space UI (pins) that never scales.
  */
 export function PlanViewport({
@@ -81,7 +95,7 @@ export function PlanViewport({
       if (!next.w || !next.h) return
       setSize((prev) => {
         if (prev && prev.w === next.w && prev.h === next.h) return prev
-        setView(fitView(next))
+        setView(initialView(next))
         return next
       })
     }
@@ -123,7 +137,7 @@ export function PlanViewport({
   }
 
   const reset = React.useCallback(() => {
-    if (sizeRef.current) setView(fitView(sizeRef.current))
+    if (sizeRef.current) setView(initialView(sizeRef.current))
   }, [])
 
   React.useEffect(() => {

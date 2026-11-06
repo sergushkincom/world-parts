@@ -2,6 +2,7 @@
 
 import { ScanIcon, XIcon } from "lucide-react"
 import { COPY, type Room } from "@/lib/data"
+import { placeLabel } from "@/lib/parts"
 import type { InventoryHit } from "@/lib/search"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -26,13 +27,13 @@ export function RoomNote({ room, hits, onClose }: { room: Room; hits: InventoryH
 
       {hits.length > 0 && (
         <ul aria-label={`Inventory in ${room.name}`} className="mt-2 flex flex-col gap-1 border-t pt-2">
-          {hits.map(({ row, part }) => (
-            <li key={part.number} className="flex items-baseline justify-between gap-3 text-label">
+          {hits.map(({ part, location }, i) => (
+            <li key={`${part.partNo}-${i}`} className="flex items-baseline justify-between gap-3 text-label">
               <span className="min-w-0 truncate">
-                <span className="font-mono">{part.number}</span>
-                <span className="text-muted-foreground">{` · ${row.note}`}</span>
+                <span className="font-mono">{part.partNo}</span>
+                <span className="text-muted-foreground">{` · ${placeLabel(location)}`}</span>
               </span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{`${row.qty} in stock`}</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{`${location.qty} in stock`}</span>
             </li>
           ))}
         </ul>

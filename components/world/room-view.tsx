@@ -10,7 +10,7 @@ import { BackToPlant, RoomMinimap } from "@/components/world/room-nav"
 import { Scene } from "@/components/world/scene"
 import { SegmentationPanel } from "@/components/world/segmentation-panel"
 
-type RoomRoute = { room: RoomId; object: string | null; q: string }
+type RoomRoute = { room: RoomId; object: string | null; part?: string | null; q: string }
 
 /** Keeps `?room=…&object=…` and the open card in step, in both directions. */
 function useObjectInHash(route: RoomRoute) {
@@ -46,8 +46,8 @@ function useObjectInHash(route: RoomRoute) {
     lastCardRef.current = state.cardId
     const concept = state.objects.find((o) => o.id === state.cardId)?.concept ?? null
     appliedRef.current = concept
-    const { room, q } = routeRef.current
-    navigate({ level: "room", room, object: concept, q }, { replace: true })
+    const { room, q, object, part } = routeRef.current
+    navigate({ level: "room", room, object: concept, part: concept === object ? part : null, q }, { replace: true })
   }, [state.hydrated, state.cardId, state.objects])
 }
 
@@ -61,7 +61,7 @@ export function RoomView({ route }: { route: RoomRoute }) {
         <h1 className="sr-only">world-parts — workshop, segmented scene</h1>
         <Scene topLeft={<BackToPlant q={route.q} />} />
         <RoomMinimap roomId={route.room} q={route.q} />
-        <ObjectCard />
+        <ObjectCard part={route.part ?? null} q={route.q} />
       </main>
       <SegmentationPanel />
     </div>

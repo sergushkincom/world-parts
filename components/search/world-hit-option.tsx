@@ -19,7 +19,7 @@ export function WorldHitOption({
   onOpen: () => void
   onHover: () => void
 }) {
-  const { object, part } = hit
+  const { object, equipment } = hit
   return (
     <li
       id={id}
@@ -41,7 +41,7 @@ export function WorldHitOption({
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium">{object.name}</span>
         <span className="truncate text-label text-muted-foreground">
-          {part ? `${part.number} · ${part.name}` : "No part linked"}
+          {equipment ? `${equipment.assetId} · ${equipment.name}` : "Not registered equipment"}
         </span>
       </span>
       <span className="shrink-0 text-label tabular-nums text-muted-foreground">

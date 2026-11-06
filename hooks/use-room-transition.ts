@@ -82,7 +82,8 @@ export function useRoomTransition(route: Route, ref: React.RefObject<HTMLDivElem
     const leftRoom = lastRoom.current
     if (route.level === "room") lastRoom.current = route.room
 
-    const shouldAnimate = navigated.current && from !== null && from !== route.level
+    // Only entering or leaving the room zooms; List ↔ Plan is a plain swap.
+    const shouldAnimate = navigated.current && from !== null && (from === "room") !== (route.level === "room")
     navigated.current = false
     const plan = outgoing.current
     outgoing.current = null

@@ -21,12 +21,12 @@ export function bounds(points: Point[]) {
     maxX = Math.max(maxX, x)
     maxY = Math.max(maxY, y)
   }
-  return { width: maxX - minX, height: maxY - minY }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
 }
 
-/** Maps scene coordinates to container pixels, matching object-fit: cover / preserveAspectRatio slice. */
-export function coverMapping(containerW: number, containerH: number, sceneW: number, sceneH: number) {
-  const k = Math.max(containerW / sceneW, containerH / sceneH)
+/** Maps scene coordinates to container pixels, matching object-fit: contain / preserveAspectRatio meet. */
+export function containMapping(containerW: number, containerH: number, sceneW: number, sceneH: number) {
+  const k = Math.min(containerW / sceneW, containerH / sceneH)
   return { k, offsetX: (containerW - sceneW * k) / 2, offsetY: (containerH - sceneH * k) / 2 }
 }
 

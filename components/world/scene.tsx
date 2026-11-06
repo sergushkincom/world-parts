@@ -3,9 +3,10 @@
 import * as React from "react"
 import { ImageOffIcon, ScanSearchIcon } from "lucide-react"
 import { COPY, LAYOUT, OBJECT_PALETTE, SCENE, type WorldObject } from "@/lib/data"
-import { bounds, centroid, coverMapping, formatCount, toPointsAttr } from "@/lib/geometry"
+import { bounds, centroid, containMapping, formatCount, toPointsAttr } from "@/lib/geometry"
 import { cn } from "@/lib/utils"
 import { useElementSize } from "@/hooks/use-element-size"
+import { useCardRect, type Rect } from "@/hooks/use-card-inset"
 import { DRAWABLE, useWorld, type SelectMode } from "@/components/world/world-provider"
 import { Button } from "@/components/ui/button"
 
@@ -17,19 +18,31 @@ function modeFromEvent(e: React.MouseEvent): SelectMode {
   return "only"
 }
 
+/**
+ * Keeps a scaled image edge from pulling inside the viewport, so framing never reveals the backdrop.
+ * When the scaled image is narrower than the viewport it stays centred instead.
+ */
+function clampPan(t: number, s: number, imgStart: number, imgEnd: number, view: number) {
+  const a = imgStart * s
+  const b = imgEnd * s
+  if (b - a <= view) return (view - a - b) / 2
+  return Math.min(-a, Math.max(view - b, t))
+}
+
 export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
   const { state, select, hover, clearSelection, frame } = useWorld()
   const containerRef = React.useRef<HTMLDivElement>(null)
   const imgRef = React.useRef<HTMLImageElement>(null)
   const { width, height } = useElementSize(containerRef)
   const [imageState, setImageState] = React.useState<ImageState>("loading")
+  const card = useCardRect(containerRef, state.cardId !== null)
 
   React.useEffect(() => {
     const img = imgRef.current
     if (img?.complete) setImageState(img.naturalWidth > 0 ? "ready" : "missing")
   }, [])
 
-  const map = coverMapping(width || 1, height || 1, SCENE.width, SCENE.height)
+  const map = containMapping(width || 1, height || 1, SCENE.width, SCENE.height)
   const drawable = state.objects.filter((o) => DRAWABLE.includes(o.status) && o.polygon)
   const selected = new Set(state.selection)
   const hasSelection = drawable.some((o) => selected.has(o.id))
@@ -41,13 +54,47 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
   if (framed?.polygon && width && height) {
     const [cx, cy] = centroid(framed.polygon)
     const b = bounds(framed.polygon)
-    const s = Math.min(
-      LAYOUT.frameMaxScale,
-      Math.max(LAYOUT.frameMinScale, Math.min((0.45 * width) / (b.width * map.k), (0.45 * height) / (b.height * map.k))),
-    )
     const px = cx * map.k + map.offsetX
     const py = cy * map.k + map.offsetY
-    transform = { s, tx: width / 2 - px * s, ty: height / 2 - py * s }
+    const imgW = SCENE.width * map.k
+    const imgH = SCENE.height * map.k
+    const full: Rect = { left: 0, top: 0, right: width, bottom: height }
+    const areas: Rect[] = card
+      ? [
+          { ...full, right: card.left },
+          { ...full, top: card.bottom },
+          { ...full, bottom: card.top },
+        ].filter((a) => a.right - a.left > width * 0.3 && a.bottom - a.top > height * 0.3)
+      : []
+    if (!areas.length) areas.push(full)
+
+    const fit = (a: Rect) => {
+      const aw = a.right - a.left
+      const ah = a.bottom - a.top
+      const s = Math.min(
+        LAYOUT.frameMaxScale,
+        Math.max(LAYOUT.frameMinScale, Math.min((0.45 * aw) / (b.width * map.k), (0.45 * ah) / (b.height * map.k))),
+      )
+      // Clamp against the whole viewport, so the image never reveals the backdrop anywhere.
+      const t = {
+        s,
+        tx: clampPan((a.left + a.right) / 2 - px * s, s, map.offsetX, map.offsetX + imgW, width),
+        ty: clampPan((a.top + a.bottom) / 2 - py * s, s, map.offsetY, map.offsetY + imgH, height),
+      }
+      const box = {
+        left: (b.x * map.k + map.offsetX) * s + t.tx,
+        top: (b.y * map.k + map.offsetY) * s + t.ty,
+        right: ((b.x + b.width) * map.k + map.offsetX) * s + t.tx,
+        bottom: ((b.y + b.height) * map.k + map.offsetY) * s + t.ty,
+      }
+      const overlap = card
+        ? Math.max(0, Math.min(box.right, card.right) - Math.max(box.left, card.left)) *
+          Math.max(0, Math.min(box.bottom, card.bottom) - Math.max(box.top, card.top))
+        : 0
+      return { t, overlap }
+    }
+
+    transform = areas.map(fit).reduce((best, c) => (c.overlap < best.overlap ? c : best)).t
   }
 
   const toScreen = (o: WorldObject) => {
@@ -90,7 +137,7 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
           onLoad={() => setImageState("ready")}
           onError={() => setImageState("missing")}
           className={cn(
-            "motion-transition absolute inset-0 size-full object-cover transition-[filter,opacity] duration-300",
+            "motion-transition absolute inset-0 size-full object-contain transition-[filter,opacity] duration-300",
             imageState !== "ready" && "opacity-0",
             view === "recolor" && "brightness-50 saturate-50",
             view === "isolate" && "brightness-[0.18] saturate-0",
@@ -100,7 +147,7 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
           data-scene-backdrop
           className="absolute inset-0 size-full"
           viewBox={`0 0 ${SCENE.width} ${SCENE.height}`}
-          preserveAspectRatio="xMidYMid slice"
+          preserveAspectRatio="xMidYMid meet"
           role="group"
           aria-label="Segmented objects"
         >
@@ -158,7 +205,10 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
             if (x < -40 || y < -20 || x > width + 40 || y > height + 20) return null
             const color = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
             const isSel = selected.has(o.id)
+            const isHover = state.hoveredId === o.id
             const dimmed = view && !isSel
+            // Under the panel breakpoint only the selected and hovered objects keep a text label.
+            const compact = !isSel && !isHover
             return (
               <button
                 key={o.id}
@@ -170,13 +220,17 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
                 className={cn(
                   "pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border bg-black/75 px-2 py-0.5 text-label font-medium text-scene-ink shadow-sm backdrop-blur-sm",
                   "motion-transition transition-[left,top,opacity] duration-500 ease-out",
+                  compact && "max-panel:p-1.5",
+                  isSel && "z-10",
                   dimmed && "opacity-50",
                 )}
-                style={{ left: x, top: y, borderColor: isSel || state.hoveredId === o.id ? color : "transparent" }}
+                style={{ left: x, top: y, borderColor: isSel || isHover ? color : "transparent" }}
               >
                 <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
-                {o.name}
-                <span className="tabular-nums text-scene-ink/60">{formatCount(o.splats ?? 0)}</span>
+                <span className={cn(compact && "max-panel:hidden")}>{o.name}</span>
+                <span className={cn("tabular-nums text-scene-ink/60", compact && "max-panel:hidden")}>
+                  {formatCount(o.splats ?? 0)}
+                </span>
               </button>
             )
           })}

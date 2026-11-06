@@ -1,26 +1,28 @@
 "use client"
 
 import * as React from "react"
-import { CrosshairIcon, LinkIcon, XIcon } from "lucide-react"
-import {
-  CURRENCY,
-  COPY,
-  INVENTORY,
-  LINK_PICKER_PARTS,
-  OBJECT_PALETTE,
-  WORLD_ROOM,
-  type Part,
-  type WorldObject,
-} from "@/lib/data"
+import { CrosshairIcon, SearchIcon, XIcon } from "lucide-react"
+import { COPY, OBJECT_PALETTE, type Equipment, type WorldObject } from "@/lib/data"
 import { formatCount } from "@/lib/geometry"
-import { getPart, stockOnHand } from "@/lib/search"
+import {
+  binContents,
+  binOf,
+  equipmentFor,
+  getEquipment,
+  getPart,
+  isBin,
+  isInWorld,
+  partsInstalledIn,
+  placeLabel,
+} from "@/lib/parts"
 import { cn } from "@/lib/utils"
+import { navigate, type Route } from "@/hooks/use-hash-route"
+import { PartDrawer } from "@/components/parts/part-drawer"
 import { DRAWABLE, useWorld, type CardTab } from "@/components/world/world-provider"
 import { StatusBadge } from "@/components/world/status-badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-const price = new Intl.NumberFormat(CURRENCY.locale, { style: "currency", currency: CURRENCY.code })
 const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" })
 
 function Facts({ rows }: { rows: [label: string, value: React.ReactNode][] }) {
@@ -69,104 +71,175 @@ function ObjectTab({ object }: { object: WorldObject }) {
   )
 }
 
-function LinkPicker({ concept }: { concept: string }) {
-  const { linkPart } = useWorld()
-  const [open, setOpen] = React.useState(false)
-  if (!open) {
-    return (
-      <div className="flex flex-col items-start gap-2">
-        <p className="text-row text-muted-foreground">{COPY.noPartLinked}</p>
-        <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
-          <LinkIcon aria-hidden data-icon="inline-start" />
-          Link a part
-        </Button>
-      </div>
-    )
-  }
-  return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1 text-label text-muted-foreground">{`Link "${concept}" to a part`}</legend>
-      {LINK_PICKER_PARTS.map((number) => {
-        const part = getPart(number)!
-        return (
-          <Button
-            key={number}
-            variant="outline"
-            size="sm"
-            className="h-auto justify-start py-1.5 text-left font-normal"
-            onClick={() => linkPart(concept, number)}
-          >
-            <span className="flex min-w-0 flex-col">
-              <span className="font-mono text-label">{part.number}</span>
-              <span className="truncate">{part.name}</span>
-            </span>
-          </Button>
-        )
-      })}
-      <Button variant="ghost" size="xs" className="self-start" onClick={() => setOpen(false)}>
-        Cancel
-      </Button>
-    </fieldset>
-  )
+type PartTabProps = {
+  object: WorldObject
+  equipment: Equipment | undefined
+  highlight: string | null
+  q: string
+  onOpenPart: (partNo: string) => void
 }
 
-function PartTab({ object, part, location }: { object: WorldObject; part: Part | undefined; location: string }) {
+function PartsPending({ object }: { object: WorldObject }) {
   if (object.status === "queued" || object.status === "segmenting") {
     return <p className="text-row text-muted-foreground">Part lookup runs once the object is lifted.</p>
   }
-  if (!part) return <LinkPicker concept={object.concept} />
+  if (object.status === "failed") {
+    return <p className="text-row text-muted-foreground">Segmentation failed — parts can&apos;t be matched to this object.</p>
+  }
+  return null
+}
 
-  const here = INVENTORY.find((r) => r.partNumber === part.number && r.roomId === WORLD_ROOM)?.qty ?? 0
-  const rows: [string, React.ReactNode][] = [
-    ["Stock on hand", `${stockOnHand(part.number)} in plant · ${here} here`],
-    ["Location", location],
-    ["Supplier", part.supplier],
-    ["Unit price", price.format(part.unitPrice)],
-  ]
-  if (part.idleSince) rows.push(["Idle since", date.format(new Date(part.idleSince))])
-
+function UnitPartsTab({ object, equipment, highlight, q, onOpenPart }: PartTabProps) {
+  const pending = PartsPending({ object })
+  if (pending) return pending
+  if (!equipment) return <p className="text-row text-muted-foreground">{COPY.notEquipment}</p>
+  const parts = partsInstalledIn(equipment.assetId)
+  if (!parts.length) return <p className="text-row text-muted-foreground">{COPY.noPartsInUnit}</p>
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-0.5">
-        <p className="font-mono text-label text-muted-foreground">{part.number}</p>
-        <p className="text-row font-semibold">{part.name}</p>
-        <p className="text-label text-muted-foreground text-pretty">{part.description}</p>
-      </div>
-      <Facts rows={rows} />
-      <section aria-labelledby="similar-heading" className="flex flex-col gap-1.5 border-t pt-2.5">
-        <h3 id="similar-heading" className="text-label font-medium text-muted-foreground">
-          Similar parts
-        </h3>
-        <ul className="flex flex-col gap-1">
-          {part.similar.map((s) => (
-            <li key={s.number} className="flex items-baseline gap-2 text-label">
-              <span className="shrink-0 font-mono">{s.number}</span>
-              <span className="min-w-0 text-muted-foreground text-pretty">{s.reason}</span>
+    <ul className="flex flex-col gap-1">
+      {parts.map((part) => {
+        const spare = part.storedIn.find((l) => isBin(l) && isInWorld(l))
+        const store = spare && isBin(spare) ? getEquipment(spare.assetId) : undefined
+        const active = part.partNo === highlight
+        return (
+          <li
+            key={part.partNo}
+            aria-current={active || undefined}
+            className={cn("flex flex-col gap-1 rounded-md p-2", active && "bg-accent ring-1 ring-primary")}
+          >
+            <button
+              type="button"
+              onClick={() => onOpenPart(part.partNo)}
+              className="flex flex-col items-start rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="font-mono text-label text-muted-foreground">{part.partNo}</span>
+              <span className="text-row">{part.name}</span>
+            </button>
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0 text-label text-muted-foreground text-pretty">
+                {part.storedIn.length
+                  ? `spare: ${part.storedIn.map((l) => `${placeLabel(l, { shelf: false })} · ${l.qty}`).join(", ")}`
+                  : "no spare in stock"}
+              </span>
+              <Button
+                size="xs"
+                variant="secondary"
+                disabled={!store}
+                title={store ? undefined : "No spare in a scanned room"}
+                onClick={() =>
+                  store &&
+                  navigate({ level: "room", room: store.room, object: store.concept, part: part.partNo, q })
+                }
+              >
+                <SearchIcon aria-hidden data-icon="inline-start" />
+                Find spare
+              </Button>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function BinsTab({ object, equipment, highlight, onOpenPart }: PartTabProps) {
+  const pending = PartsPending({ object })
+  if (pending) return pending
+  const bins = equipment?.bins ?? []
+  const highlightPart = getPart(highlight)
+  const highlightBin = equipment && highlightPart ? binOf(highlightPart, equipment.assetId) : null
+  return (
+    <div className="flex flex-col gap-2">
+      {highlightPart && !highlightBin && (
+        <p className="text-label text-muted-foreground">{`${highlightPart.name} isn't stored in this cabinet.`}</p>
+      )}
+      <ul aria-label="Bins" className="grid grid-cols-2 gap-1.5">
+        {bins.map((bin) => {
+          const contents = binContents(equipment!.assetId, bin)
+          const active = bin === highlightBin
+          return (
+            <li
+              key={bin}
+              aria-current={active || undefined}
+              className={cn(
+                "flex min-h-20 flex-col gap-1 rounded-md border p-2",
+                active ? "border-primary bg-accent ring-1 ring-primary" : "bg-muted/30",
+              )}
+            >
+              <span className="font-mono text-label font-medium">
+                {bin}
+                {active && <span className="sr-only"> — contains the searched part</span>}
+              </span>
+              {contents.length ? (
+                <ul className="flex flex-col gap-0.5">
+                  {contents.map(({ part, qty }) => (
+                    <li key={part.partNo}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenPart(part.partNo)}
+                        className={cn(
+                          "flex w-full items-baseline justify-between gap-1 rounded-sm text-left text-label outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring",
+                          part.partNo === highlight && "font-semibold",
+                        )}
+                      >
+                        <span className="min-w-0 truncate">{part.name}</span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">{`×${qty}`}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="text-label text-muted-foreground">empty</span>
+              )}
             </li>
-          ))}
-        </ul>
-      </section>
-      {/* Mocked: there is no parts system to open yet. */}
-      <Button size="sm" variant="outline" onClick={() => {}}>
-        {COPY.openInPartsSystem}
-      </Button>
+          )
+        })}
+      </ul>
     </div>
   )
 }
 
-/** Floating card for one object: what SAM3 made of it, and which inventory part it is. */
-export function ObjectCard() {
-  const { state, closeCard, setCardTab } = useWorld()
+const partsListRoute = (partNo: string): Route => ({ level: "parts", q: "", part: partNo })
+
+/** Esc closes the drawer before the room's own Esc handling (card, then back to plan). */
+function useDrawerEscape(open: boolean, close: () => void) {
+  React.useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      e.stopImmediatePropagation()
+      e.preventDefault()
+      close()
+    }
+    window.addEventListener("keydown", onKey, { capture: true })
+    return () => window.removeEventListener("keydown", onKey, { capture: true })
+  }, [open, close])
+}
+
+/** Floating card for one object: what SAM3 made of it, and the parts in or stored in it. */
+export function ObjectCard({ part = null, q = "" }: { part?: string | null; q?: string }) {
+  const { state } = useWorld()
   const object = state.objects.find((o) => o.id === state.cardId)
   if (!object) return null
+  return <ObjectCardBody key={object.id} object={object} part={part} q={q} />
+}
 
-  const link = state.partLinks[object.concept]
-  const part = getPart(link?.partNumber)
+function ObjectCardBody({ object, part, q }: { object: WorldObject; part: string | null; q: string }) {
+  const { state, closeCard, setCardTab } = useWorld()
+  const [drawerPart, setDrawerPart] = React.useState<string | null>(null)
+  const closeDrawer = React.useCallback(() => setDrawerPart(null), [])
+  useDrawerEscape(drawerPart !== null, closeDrawer)
+
+  const equipment = equipmentFor(object)
+  const isStore = Boolean(equipment?.bins?.length)
   const color = OBJECT_PALETTE[object.colorIndex % OBJECT_PALETTE.length]
+  const tabProps: PartTabProps = { object, equipment, highlight: part, q, onOpenPart: setDrawerPart }
 
   return (
+    <>
     <section
       aria-label={`${object.name} card`}
+      data-object-card
       className={cn(
         "z-30 flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl",
         "panel:absolute panel:top-14 panel:right-3 panel:max-h-[calc(100%-4.5rem)] panel:w-80 panel:rounded-lg",
@@ -188,15 +261,15 @@ export function ObjectCard() {
       >
         <TabsList className="mb-3 w-full">
           <TabsTrigger value="object">Object</TabsTrigger>
-          <TabsTrigger value="part">Part</TabsTrigger>
+          <TabsTrigger value="part">{isStore ? "Bins" : "Parts in this unit"}</TabsTrigger>
         </TabsList>
         <TabsContent value="object">
           <ObjectTab object={object} />
         </TabsContent>
-        <TabsContent value="part">
-          <PartTab object={object} part={part} location={link?.location ?? "—"} />
-        </TabsContent>
+        <TabsContent value="part">{isStore ? <BinsTab {...tabProps} /> : <UnitPartsTab {...tabProps} />}</TabsContent>
       </Tabs>
     </section>
+    {drawerPart && <PartDrawer partNo={drawerPart} onClose={closeDrawer} partRoute={partsListRoute} />}
+    </>
   )
 }

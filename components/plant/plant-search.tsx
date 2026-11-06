@@ -2,10 +2,11 @@
 
 import * as React from "react"
 import { SearchIcon, XIcon } from "lucide-react"
-import { COPY, PLANT_STATS, SUGGESTED_CONCEPTS } from "@/lib/data"
+import { COPY, PARTS_SUMMARY, PLANT_STATS, SUGGESTED_CONCEPTS } from "@/lib/data"
 import { isSearchable, type RoomResults, type SearchOption } from "@/lib/search"
 import { cn } from "@/lib/utils"
 import { useWorld } from "@/components/world/world-provider"
+import { PlanHitOption } from "@/components/search/plan-hit-option"
 import { WorldHitOption } from "@/components/search/world-hit-option"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,11 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 
 const LISTBOX_ID = "plant-results"
-
-function sharedNote(group: Extract<RoomResults, { kind: "inventory" }>) {
-  const notes = new Set(group.hits.map((h) => h.row.note))
-  return notes.size === 1 ? [...notes][0] : null
-}
 
 export function PlantSearch({
   q,
@@ -132,7 +128,7 @@ export function PlantSearch({
       {!searching && (
         state.hydrated ? (
           <p className="text-center text-label text-muted-foreground">
-            {`${PLANT_STATS.roomsScanned} of ${PLANT_STATS.roomsTotal} rooms scanned · ${state.objects.length} objects in world · ${PLANT_STATS.partsInInventory} parts in inventory`}
+            {`${PLANT_STATS.roomsScanned} of ${PLANT_STATS.roomsTotal} rooms scanned · ${state.objects.length} objects in world · ${PARTS_SUMMARY}`}
           </p>
         ) : (
           <Skeleton aria-hidden className="mx-auto h-4 w-72" />
@@ -199,58 +195,28 @@ export function PlantSearch({
             <ul id={LISTBOX_ID} role="listbox" aria-label="Search results" className="overflow-y-auto overscroll-contain p-1.5">
               {groups.map((group) => {
                 const headerId = `${LISTBOX_ID}-${group.room.id}`
-                const note = group.kind === "inventory" ? sharedNote(group) : null
                 return (
                   <li key={group.room.id} role="presentation" className="not-first:mt-1.5">
                     <div id={headerId} className="px-2 py-1 text-label text-muted-foreground">
                       <span className="font-medium text-foreground">{group.room.name}</span>
-                      {group.kind === "world" ? " · in world" : ` · inventory only${note ? ` — ${note}` : ""}`}
+                      {group.inWorld ? " · in world" : " · inventory only"}
                     </div>
                     <ul role="group" aria-labelledby={headerId}>
-                      {group.kind === "world"
-                        ? group.hits.map((hit) => {
-                            const option = options[++flatIndex]
-                            const index = flatIndex
-                            return (
-                              <WorldHitOption
-                                key={option.id}
-                                id={option.id}
-                                hit={hit}
-                                active={index === activeIndex}
-                                onHover={() => setActiveIndex(index)}
-                                onOpen={() => openOption(option)}
-                              />
-                            )
-                          })
-                        : group.hits.map(({ row, part }) => {
-                            const option = options[++flatIndex]
-                            const index = flatIndex
-                            return (
-                              <li
-                                key={option.id}
-                                id={option.id}
-                                role="option"
-                                aria-selected={index === activeIndex}
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => openOption(option)}
-                                onPointerMove={() => setActiveIndex(index)}
-                                className={cn(
-                                  "flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-row",
-                                  index === activeIndex && "bg-accent text-accent-foreground",
-                                )}
-                              >
-                                <span aria-hidden className="size-2.5 shrink-0 rounded-sm border border-dashed border-muted-foreground" />
-                                <span className="flex min-w-0 flex-1 flex-col">
-                                  <span className="truncate font-medium">{part.name}</span>
-                                  <span className="truncate text-label text-muted-foreground">
-                                    <span className="font-mono">{part.number}</span>
-                                    {note ? null : ` · ${row.note}`}
-                                  </span>
-                                </span>
-                                <span className="shrink-0 text-label tabular-nums text-muted-foreground">{`${row.qty} in stock`}</span>
-                              </li>
-                            )
-                          })}
+                      {group.hits.map((hit) => {
+                        const option = options[++flatIndex]
+                        const index = flatIndex
+                        const shared = {
+                          id: option.id,
+                          active: index === activeIndex,
+                          onHover: () => setActiveIndex(index),
+                          onOpen: () => openOption(option),
+                        }
+                        return hit.kind === "equipment" ? (
+                          <WorldHitOption key={option.id} {...shared} hit={hit} />
+                        ) : (
+                          <PlanHitOption key={option.id} {...shared} room={group.room} hit={hit} />
+                        )
+                      })}
                     </ul>
                   </li>
                 )
