@@ -21,7 +21,7 @@ export function bounds(points: Point[]) {
     maxX = Math.max(maxX, x)
     maxY = Math.max(maxY, y)
   }
-  return { width: maxX - minX, height: maxY - minY }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
 }
 
 /** Maps scene coordinates to container pixels, matching object-fit: contain / preserveAspectRatio meet. */

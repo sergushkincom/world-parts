@@ -6,6 +6,7 @@ import { COPY, LAYOUT, OBJECT_PALETTE, SCENE, type WorldObject } from "@/lib/dat
 import { bounds, centroid, containMapping, formatCount, toPointsAttr } from "@/lib/geometry"
 import { cn } from "@/lib/utils"
 import { useElementSize } from "@/hooks/use-element-size"
+import { useCardRect, type Rect } from "@/hooks/use-card-inset"
 import { DRAWABLE, useWorld, type SelectMode } from "@/components/world/world-provider"
 import { Button } from "@/components/ui/button"
 
@@ -34,6 +35,7 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
   const imgRef = React.useRef<HTMLImageElement>(null)
   const { width, height } = useElementSize(containerRef)
   const [imageState, setImageState] = React.useState<ImageState>("loading")
+  const card = useCardRect(containerRef, state.cardId !== null)
 
   React.useEffect(() => {
     const img = imgRef.current
@@ -52,19 +54,47 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
   if (framed?.polygon && width && height) {
     const [cx, cy] = centroid(framed.polygon)
     const b = bounds(framed.polygon)
-    const s = Math.min(
-      LAYOUT.frameMaxScale,
-      Math.max(LAYOUT.frameMinScale, Math.min((0.45 * width) / (b.width * map.k), (0.45 * height) / (b.height * map.k))),
-    )
     const px = cx * map.k + map.offsetX
     const py = cy * map.k + map.offsetY
     const imgW = SCENE.width * map.k
     const imgH = SCENE.height * map.k
-    transform = {
-      s,
-      tx: clampPan(width / 2 - px * s, s, map.offsetX, map.offsetX + imgW, width),
-      ty: clampPan(height / 2 - py * s, s, map.offsetY, map.offsetY + imgH, height),
+    const full: Rect = { left: 0, top: 0, right: width, bottom: height }
+    const areas: Rect[] = card
+      ? [
+          { ...full, right: card.left },
+          { ...full, top: card.bottom },
+          { ...full, bottom: card.top },
+        ].filter((a) => a.right - a.left > width * 0.3 && a.bottom - a.top > height * 0.3)
+      : []
+    if (!areas.length) areas.push(full)
+
+    const fit = (a: Rect) => {
+      const aw = a.right - a.left
+      const ah = a.bottom - a.top
+      const s = Math.min(
+        LAYOUT.frameMaxScale,
+        Math.max(LAYOUT.frameMinScale, Math.min((0.45 * aw) / (b.width * map.k), (0.45 * ah) / (b.height * map.k))),
+      )
+      // Clamp against the whole viewport, so the image never reveals the backdrop anywhere.
+      const t = {
+        s,
+        tx: clampPan((a.left + a.right) / 2 - px * s, s, map.offsetX, map.offsetX + imgW, width),
+        ty: clampPan((a.top + a.bottom) / 2 - py * s, s, map.offsetY, map.offsetY + imgH, height),
+      }
+      const box = {
+        left: (b.x * map.k + map.offsetX) * s + t.tx,
+        top: (b.y * map.k + map.offsetY) * s + t.ty,
+        right: ((b.x + b.width) * map.k + map.offsetX) * s + t.tx,
+        bottom: ((b.y + b.height) * map.k + map.offsetY) * s + t.ty,
+      }
+      const overlap = card
+        ? Math.max(0, Math.min(box.right, card.right) - Math.max(box.left, card.left)) *
+          Math.max(0, Math.min(box.bottom, card.bottom) - Math.max(box.top, card.top))
+        : 0
+      return { t, overlap }
     }
+
+    transform = areas.map(fit).reduce((best, c) => (c.overlap < best.overlap ? c : best)).t
   }
 
   const toScreen = (o: WorldObject) => {

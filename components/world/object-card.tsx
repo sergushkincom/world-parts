@@ -239,6 +239,7 @@ function ObjectCardBody({ object, part, q }: { object: WorldObject; part: string
     <>
     <section
       aria-label={`${object.name} card`}
+      data-object-card
       className={cn(
         "z-30 flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl",
         "panel:absolute panel:top-14 panel:right-3 panel:max-h-[calc(100%-4.5rem)] panel:w-80 panel:rounded-lg",
