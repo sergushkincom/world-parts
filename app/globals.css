@@ -1,0 +1,232 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark follows the OS setting; there is no theme toggle in this prototype. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+:root {
+  /* Surfaces & text — light */
+  --background: #f4f4f2;
+  --foreground: #17191c;
+  --card: #ffffff;
+  --card-foreground: #17191c;
+  --popover: #ffffff;
+  --popover-foreground: #17191c;
+  --primary: #17191c;
+  --primary-foreground: #f7f7f5;
+  --secondary: #ebebe8;
+  --secondary-foreground: #17191c;
+  --muted: #ebebe8;
+  --muted-foreground: #5f646c;
+  --accent: #e4e4e0;
+  --accent-foreground: #17191c;
+  --destructive: #c8372f;
+  --border: #dcdcd7;
+  --input: #d2d2cc;
+  --ring: #2f7ae5;
+
+  /* Status */
+  --status-lifted: #1f8a5f;
+  --status-low: #a86a00;
+  --status-failed: #c8372f;
+  --status-active: #2f7ae5;
+  --status-queued: #7a7f87;
+
+  /* Scene */
+  --scene-bg: #1b1d21;
+  --scene-grid: rgba(255, 255, 255, 0.04);
+  --scene-ink: #e9eaec;
+  --scene-dim: rgba(8, 9, 11, 0.6);
+  --scene-isolate: rgba(8, 9, 11, 0.9);
+
+  /* Layout & spacing */
+  --panel-width: 360px;
+  --rail-width: 48px;
+  --space-panel-x: 1rem;
+  --space-section-y: 0.875rem;
+  --radius: 0.5rem;
+
+  /* Type scale */
+  --type-label: 0.6875rem;
+  --type-row: 0.8125rem;
+  --type-body: 0.875rem;
+  --type-title: 0.9375rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d0e10;
+    --foreground: #e9eaec;
+    --card: #141518;
+    --card-foreground: #e9eaec;
+    --popover: #1a1c20;
+    --popover-foreground: #e9eaec;
+    --primary: #e9eaec;
+    --primary-foreground: #121316;
+    --secondary: #1f2125;
+    --secondary-foreground: #e9eaec;
+    --muted: #1d1f23;
+    --muted-foreground: #8c919a;
+    --accent: #24272c;
+    --accent-foreground: #e9eaec;
+    --destructive: #ee5d54;
+    --border: #262930;
+    --input: #2e3138;
+    --ring: #5aa2ff;
+
+    --status-lifted: #43c18f;
+    --status-low: #e6aa3c;
+    --status-failed: #ee5d54;
+    --status-active: #5aa2ff;
+    --status-queued: #8c919a;
+
+    --scene-bg: #111214;
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --breakpoint-panel: 900px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-status-lifted: var(--status-lifted);
+  --color-status-low: var(--status-low);
+  --color-status-failed: var(--status-failed);
+  --color-status-active: var(--status-active);
+  --color-status-queued: var(--status-queued);
+  --color-scene: var(--scene-bg);
+  --color-scene-ink: var(--scene-ink);
+
+  --spacing-panel: var(--panel-width);
+  --spacing-rail: var(--rail-width);
+  --spacing-panel-x: var(--space-panel-x);
+  --spacing-section-y: var(--space-section-y);
+
+  --text-label: var(--type-label);
+  --text-label--line-height: 1rem;
+  --text-row: var(--type-row);
+  --text-row--line-height: 1.25rem;
+  --text-body: var(--type-body);
+  --text-title: var(--type-title);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    @apply h-full overflow-hidden bg-background text-foreground antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+}
+
+@keyframes overlay-pulse {
+  0%,
+  100% {
+    stroke-opacity: 0.9;
+    stroke-width: 3;
+  }
+  50% {
+    stroke-opacity: 0.35;
+    stroke-width: 7;
+  }
+}
+
+@keyframes scan-sweep {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes segment-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.overlay-pulse {
+  animation: overlay-pulse 1.6s ease-in-out infinite;
+}
+
+.scan-sweep {
+  animation: scan-sweep 2.5s linear infinite;
+}
+
+.segment-progress {
+  transform-origin: left;
+  animation: segment-progress var(--segment-ms, 2500ms) linear forwards;
+}
+
+.plan-invert {
+  filter: invert(1) brightness(0.8);
+}
+
+@keyframes pin-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.pin-pulse {
+  animation: pin-pulse 1.6s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay-pulse,
+  .scan-sweep,
+  .pin-pulse {
+    animation: none;
+  }
+  /* Static ring instead of a pulse. */
+  .pin-pulse {
+    transform: scale(2);
+    opacity: 0.35;
+  }
+  .motion-transition {
+    transition: none !important;
+  }
+}
