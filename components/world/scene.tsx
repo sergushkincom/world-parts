@@ -3,7 +3,7 @@
 import * as React from "react"
 import { ImageOffIcon, ScanSearchIcon } from "lucide-react"
 import { COPY, LAYOUT, OBJECT_PALETTE, SCENE, type WorldObject } from "@/lib/data"
-import { bounds, centroid, coverMapping, formatCount, toPointsAttr } from "@/lib/geometry"
+import { bounds, centroid, containMapping, formatCount, toPointsAttr } from "@/lib/geometry"
 import { cn } from "@/lib/utils"
 import { useElementSize } from "@/hooks/use-element-size"
 import { DRAWABLE, useWorld, type SelectMode } from "@/components/world/world-provider"
@@ -40,7 +40,7 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
     if (img?.complete) setImageState(img.naturalWidth > 0 ? "ready" : "missing")
   }, [])
 
-  const map = coverMapping(width || 1, height || 1, SCENE.width, SCENE.height)
+  const map = containMapping(width || 1, height || 1, SCENE.width, SCENE.height)
   const drawable = state.objects.filter((o) => DRAWABLE.includes(o.status) && o.polygon)
   const selected = new Set(state.selection)
   const hasSelection = drawable.some((o) => selected.has(o.id))
@@ -107,7 +107,7 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
           onLoad={() => setImageState("ready")}
           onError={() => setImageState("missing")}
           className={cn(
-            "motion-transition absolute inset-0 size-full object-cover transition-[filter,opacity] duration-300",
+            "motion-transition absolute inset-0 size-full object-contain transition-[filter,opacity] duration-300",
             imageState !== "ready" && "opacity-0",
             view === "recolor" && "brightness-50 saturate-50",
             view === "isolate" && "brightness-[0.18] saturate-0",
@@ -117,7 +117,7 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
           data-scene-backdrop
           className="absolute inset-0 size-full"
           viewBox={`0 0 ${SCENE.width} ${SCENE.height}`}
-          preserveAspectRatio="xMidYMid slice"
+          preserveAspectRatio="xMidYMid meet"
           role="group"
           aria-label="Segmented objects"
         >
