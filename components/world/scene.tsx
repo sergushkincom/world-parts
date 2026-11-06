@@ -205,7 +205,10 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
             if (x < -40 || y < -20 || x > width + 40 || y > height + 20) return null
             const color = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
             const isSel = selected.has(o.id)
+            const isHover = state.hoveredId === o.id
             const dimmed = view && !isSel
+            // Under the panel breakpoint only the selected and hovered objects keep a text label.
+            const compact = !isSel && !isHover
             return (
               <button
                 key={o.id}
@@ -217,13 +220,17 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
                 className={cn(
                   "pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border bg-black/75 px-2 py-0.5 text-label font-medium text-scene-ink shadow-sm backdrop-blur-sm",
                   "motion-transition transition-[left,top,opacity] duration-500 ease-out",
+                  compact && "max-panel:p-1.5",
+                  isSel && "z-10",
                   dimmed && "opacity-50",
                 )}
-                style={{ left: x, top: y, borderColor: isSel || state.hoveredId === o.id ? color : "transparent" }}
+                style={{ left: x, top: y, borderColor: isSel || isHover ? color : "transparent" }}
               >
                 <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
-                {o.name}
-                <span className="tabular-nums text-scene-ink/60">{formatCount(o.splats ?? 0)}</span>
+                <span className={cn(compact && "max-panel:hidden")}>{o.name}</span>
+                <span className={cn("tabular-nums text-scene-ink/60", compact && "max-panel:hidden")}>
+                  {formatCount(o.splats ?? 0)}
+                </span>
               </button>
             )
           })}
