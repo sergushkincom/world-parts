@@ -19,10 +19,11 @@ So the prototype starts from the plant, not from the viewer: search for a part, 
 
 ## What's here
 
+- **Parts list** — the start screen: part number, name, stock, location and status (`low · idle · installed only`), filters, sorting, and a detail drawer with stock by location, which equipment the part is installed in, and similar parts with the reason. Every location is a link: into the room if it's scanned, onto the plan if it's inventory only.
 - **Plant overview** — a floor plan with five rooms (one `scanned`, four `not scanned`), a search field that takes a name or a part number, and results grouped by room: `in world` (exact object, click to enter) or `inventory only` (location as text, "scan this room to locate parts in 3D"). Pinch-to-zoom and drag on mobile.
 - **Room** — the workshop scene with segmented objects as overlays and tracking labels; entering from a search result frames the object and opens its card. A minimap in the corner shows the current room and returns to the plan. 300 ms zoom-and-fade between levels, static swap with reduced motion.
 - **Segmentation panel** — concept input (and what it can't do), object list with explicit states (`lifted · low confidence · failed` with a reason and Retry), multi-select, Gaussian view as a three-way switch, server status pill with latency.
-- **Object card** — *Object* (splats, views, confidence) and *Part* (part number, stock on hand, location, supplier, unit price, two similar parts with the reason).
+- **Object card** — *Object* (splats, views, confidence) and *Parts in this unit* on equipment, with a "Find spare" action that frames the cabinet; *Bins* on the cabinet, a 2×3 grid with the searched bin highlighted.
 - Desktop and 375 px, keyboard for everything that isn't the camera (`/` search, `G` segment, `Esc` back, `↑/↓`, `1/2/3`), reduced motion respected, state in the URL so a link opens the same view.
 
 Vocabulary is kept from the original project — concept, segment view, lift, views, votes, Gaussian view, isolate — so this can be read next to its code.
@@ -33,15 +34,15 @@ Vocabulary is kept from the original project — concept, segment view, lift, vi
 2. **Not scanned is a state, not an absence.** Four rooms say so, and say what scanning would give them.
 3. **Low confidence is a state, not a hidden number.** An object with too few votes says so and why.
 4. **The part layer is additive.** Everything works without a part attached; nothing in the world layer depends on it.
-5. **All values from `lib/data.ts`.** Rooms, objects, parts, inventory rows, timings. No real brands, no real part numbers.
+5. **Equipment and parts are two levels.** The world segments equipment (pump P-104, cabinet CAB-01); parts are records that are *installed in* equipment or *stored in* a bin, rack or spot. Search answers both.
+6. **All values from `lib/data.ts`.** Rooms, equipment, parts, inventory rows, timings. No real brands, no real part numbers.
 
 ## Deliberately not built
 
-Real segmentation · the live 3D viewer (the room is a still frame of the world) · batch sweep · parts search beyond the demo set · procurement flow · auth · persistence beyond this browser.
+Real segmentation · the live 3D viewer (the room is a still frame of the world) · batch sweep · parts search beyond the 12 demo records · procurement, suppliers, ordering · auth · persistence beyond this browser.
 
 ## Next
 
-- Parts list as the start screen, two-level data (equipment vs parts, `installed in` / `stored in`), cabinet bins.
 - The batch sweep as an honest wait: cost before start, progress, cancel that keeps results.
 - Live world: SOG export from SpAItial rendered with PlayCanvas, 3D anchors, camera flight to the found part.
 
