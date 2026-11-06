@@ -45,3 +45,20 @@ Not checked by the agent: real multi-touch on a phone (gestures simulated) · iO
 My check: desktop ok · 375 px ok · what I saw: search "pump" → 4 results in 3 rooms → Workshop opens with the pump framed and the Part tab open; back to plan works; all room names visible.
 Published: v0 Publish merged the branch into `main` and deployed world-parts.vercel.app.
 Open: `scene.jpg` is 3.3 MB and `floor-plan.png` 1.1 MB — compress in round 3. README `docs/preview.png` missing — add a screenshot.
+
+## Round 3 — parts list, two-level data, bins  (2026-11-06)
+Prompt: parts table as the start screen; `lib/data.ts` rewritten into equipment (asset ids, cabinet with bins) and 12 parts with `installedIn` / `storedIn`; search results typed `stored` / `installed` / `inventory only`; room card tabs "Parts in this unit" and "Bins"; image compression first. Branch `v0/round-3-parts-list`, 5 commits, 20 min, +1,589 / −495.
+Agent did: scene 3.3 MB → 231 KB, plan 1.1 MB → 222 KB (16-colour palette, checked); data model; parts list with sort, filters (All / Low stock / Idle / In world), status chips, detail drawer with stock by location, installed-in chips, similar parts; plan results grouped by room and kind; cabinet Bins tab with the searched bin highlighted; "Find spare" on equipment; Esc closes drawer → card → room. Found and fixed on its own: every location showed its quantity twice ("cabinet A1 (2) ×2").
+Wrong (found by me in the browser):
+- Leaving a room threw `Cannot read properties of undefined (reading 'name')` in RoomMinimap during the exit transition. Fixed with a guard; agent could not reproduce it from a real link (likely a mid-edit reload).
+- Cabinet polygon sat on the left-edge door, got cropped on desktop, and Frame on it zoomed into black. Fixed: polygon moved to the grey cabinet at the back wall; Frame clamped to the image.
+- Desktop scene was cropped by the panel (pallet, hose, valve hidden at 1280–1500 px). Fixed: scene fits the area left of the panel.
+- Object card covered the framed object. Fixed: frame centre offset into the free area.
+- Mobile labels collided (valve/hose, motor/pallet). Fixed: dots, name only for selected/hovered.
+- Mobile top bar: search field shrank to ~130 px next to List · Plan; plan small again. Fixed: switch on its own row, plan fills the height.
+- Counts disagreed ("69 parts in inventory" vs "12 of 12 parts"). Fixed: "12 parts · 69 units" everywhere.
+- Filter "In this room" shown at plant level; impeller Location "—". Fixed: "In world" outside a room; "installed in pump P-104" for installed-only parts.
+Fixed by hand: — (all through the agent; each checked in the preview)
+Not checked by the agent: real touch device · a saved world's cabinet outline is overwritten by the built-in one on load (a hand-drawn cabinet outline would be replaced).
+My check: desktop ok · 375 px ok · what I saw: list → drawer → "Workshop · cabinet B3" → room with Bins tab and B3 highlighted; Frame on cabinet no longer black. Open: the card still overlaps the back-wall cabinet at 1491 px; carry into round 4.
+Published: v0 Publish merged PR #2 into `main`, deployed world-parts.vercel.app.
