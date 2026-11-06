@@ -154,6 +154,7 @@ export const STORAGE_KEYS = {
   objects: "world-parts.objects.v3",
   partLinks: "world-parts.part-links.v1",
   selection: "world-parts.selection.v1",
+  planHintSeen: "world-parts.plan-hint-seen.v1",
   concepts: "world-parts.concepts.v1",
 } as const
 
@@ -295,8 +296,8 @@ export const PLAN = {
   width: 1672,
   height: 941,
   maxWidth: 1280,
-  /** Below this the plan keeps its width and scrolls horizontally inside its container. */
-  minWidth: 720,
+  /** Furthest zoom-in, relative to the fit-the-whole-plan scale. */
+  maxZoom: 5,
   minimapWidth: 180,
   alt: "Floor plan of the plant: production hall, workshop, storeroom, office and loading bay",
   /** Where the capture camera stood in the scanned room — the dot on the minimap. */

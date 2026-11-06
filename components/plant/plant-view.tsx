@@ -76,13 +76,8 @@ export function PlantView({ q }: { q: string }) {
       </header>
 
       <main className="relative min-h-0 flex-1">
-        <div className="size-full overflow-auto overscroll-contain">
-          <div
-            className="mx-auto flex min-h-full items-center p-4"
-            style={{ width: `max(100%, ${PLAN.minWidth}px)`, maxWidth: PLAN.maxWidth + 32 }}
-          >
-            <FloorPlan hits={hitRooms} focusRoom={noteRoom} onRoom={openRoom} />
-          </div>
+        <div className="mx-auto size-full" style={{ maxWidth: PLAN.maxWidth }}>
+          <FloorPlan hits={hitRooms} focusRoom={noteRoom} onRoom={openRoom} />
         </div>
 
         {noteRoom && (
