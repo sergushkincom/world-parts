@@ -2,45 +2,52 @@
 
 **What does a 3D world become when you attach your own data to its objects?**
 
-A design pass on the control panel of [risenW/segment-3gs](https://github.com/risenW/segment-3gs) — a Gaussian-splat segmentation playground built on [SpAItial](https://spaitial.ai) worlds, where you segment an object once and it lives in 3D from then on. The pipeline there is real. This repo is the surface around it, with the pipeline mocked.
+A design pass built on top of [risenW/segment-3gs](https://github.com/risenW/segment-3gs) — a Gaussian-splat segmentation playground on [SpAItial](https://spaitial.ai) worlds, where you segment an object once and it lives in 3D from then on. The pipeline there is real. This repo is the surface around it: the segmentation is mocked, the question is what a maintenance engineer does with a segmented world once their parts data hangs on it.
 
-Live: _(link)_ · Built in a day, prototype only. Not affiliated with SpAItial.
+**Live: [world-parts.vercel.app](https://world-parts.vercel.app)** · Built in a day, prototype only. Not affiliated with SpAItial.
 
-![preview](docs/preview.png)
+![Plant overview with a part search, and the workshop with the found pump framed](docs/preview.png)
 
 ## The question
 
 `segment-3gs` says in its own README that it is "a starting point to fork, not a product". Two things keep it a demo:
 
-1. **Segmentation is slow by design.** A batch sweep is 16 views × N concepts at ~13 s per call — a leave-it-running job. The UI needs to make that wait honest: cost before you start, progress you can read, results you can use before it's done, a cancel that keeps what it found.
-2. **A segmented object knows its own geometry and nothing else.** For a real-estate visitor that's fine. For the other persona — a team that integrates worlds into their own product through the API — the object is only useful once their data hangs on it.
+1. **A segmented object knows its own geometry and nothing else.** For a real-estate visitor that's fine. For the other persona — a team that integrates worlds into their own product through the API — the object is only useful once their data hangs on it: what it is, what's in stock, what replaces it.
+2. **One world is one room.** A plant has many; only some are scanned. The interface has to be honest about which rooms can answer "where is it" in 3D and which can only answer from the inventory list.
 
-So the prototype does two things: makes segment-once-reuse-forever feel like a tool, and shows what one object looks like when a parts data source is attached to it (part number, stock, supplier, interchangeable parts). The scene is a factory interior because that's where the second question is sharpest.
+So the prototype starts from the plant, not from the viewer: search for a part, see which rooms have it and how precisely, walk into the scanned one, and find it framed with its parts record open. The scene is a factory workshop because that's where the question is sharpest.
 
 ## What's here
 
-- **Scene** — a still frame of a workshop with segmented objects drawn as overlays with tracking labels. No camera, no 3D library; the frame stands in for the viewer.
-- **Segmentation panel** — concept input (and what it can't do), batch sweep with live cost, progress, cancel and partial results, object list with explicit states (`queued · segmenting · lifted · low confidence · failed`), multi-select, Gaussian view as a three-way switch.
-- **Object card** — "In this world" (geometry, votes, views) and "Part" (the attached record, with two similar parts and why).
-- Desktop and 375 px, keyboard for everything that isn't the camera, reduced motion respected, light and dark.
+- **Plant overview** — a floor plan with five rooms (one `scanned`, four `not scanned`), a search field that takes a name or a part number, and results grouped by room: `in world` (exact object, click to enter) or `inventory only` (location as text, "scan this room to locate parts in 3D"). Pinch-to-zoom and drag on mobile.
+- **Room** — the workshop scene with segmented objects as overlays and tracking labels; entering from a search result frames the object and opens its card. A minimap in the corner shows the current room and returns to the plan. 300 ms zoom-and-fade between levels, static swap with reduced motion.
+- **Segmentation panel** — concept input (and what it can't do), object list with explicit states (`lifted · low confidence · failed` with a reason and Retry), multi-select, Gaussian view as a three-way switch, server status pill with latency.
+- **Object card** — *Object* (splats, views, confidence) and *Part* (part number, stock on hand, location, supplier, unit price, two similar parts with the reason).
+- Desktop and 375 px, keyboard for everything that isn't the camera (`/` search, `G` segment, `Esc` back, `↑/↓`, `1/2/3`), reduced motion respected, state in the URL so a link opens the same view.
 
-Vocabulary is kept from the original project — concept, segment view, batch sweep, lift, views, votes, Gaussian view, isolate — so this can be read next to its code.
+Vocabulary is kept from the original project — concept, segment view, lift, views, votes, Gaussian view, isolate — so this can be read next to its code.
 
 ## Design decisions
 
-1. **The wait is a first-class screen, not a spinner.** Cost line before start, "view 7 of 16 · pump" during, partial objects usable immediately, cancel keeps results.
-2. **Low confidence is a state, not a hidden number.** An object with too few votes says so and says why, instead of silently looking wrong.
-3. **Gaussian view is one switch.** Highlight / Recolor + dim / Isolate are modes of the selection, so they sit together and are disabled together.
-4. **The part layer is additive.** Everything works without a part attached; the empty state invites the link. Nothing in the world layer depends on the parts layer.
-5. **All values from `lib/data.ts`.** Objects, parts, server tiers, timings. Change one number, the whole flow follows.
+1. **Start from the plant, not the viewer.** The engineer's question is "where", and the answer has two precisions: in world, or inventory only. Both are shown; neither pretends to be the other.
+2. **Not scanned is a state, not an absence.** Four rooms say so, and say what scanning would give them.
+3. **Low confidence is a state, not a hidden number.** An object with too few votes says so and why.
+4. **The part layer is additive.** Everything works without a part attached; nothing in the world layer depends on it.
+5. **All values from `lib/data.ts`.** Rooms, objects, parts, inventory rows, timings. No real brands, no real part numbers.
 
 ## Deliberately not built
 
-Real segmentation · the 3D viewer and camera · parts search · procurement flow · auth · multi-world · persistence beyond this browser.
+Real segmentation · the live 3D viewer (the room is a still frame of the world) · batch sweep · parts search beyond the demo set · procurement flow · auth · persistence beyond this browser.
+
+## Next
+
+- Parts list as the start screen, two-level data (equipment vs parts, `installed in` / `stored in`), cabinet bins.
+- The batch sweep as an honest wait: cost before start, progress, cancel that keeps results.
+- Live world: SOG export from SpAItial rendered with PlayCanvas, 3D anchors, camera flight to the found part.
 
 ## How it was built
 
-v0 for the first version, then one review round per commit. Commits are `agent:` (what the agent produced) and `fix:` (what I changed by hand and why). `AGENT_LOG.md` lists every round, including what the agent got wrong.
+v0 for the first version, then one review round per commit. `AGENT_LOG.md` lists every round: what the agent produced, what it got wrong, what I changed by hand.
 
 ## Stack
 
@@ -48,4 +55,4 @@ Next.js · TypeScript · Tailwind · shadcn/ui. No backend. MIT.
 
 ## Credits
 
-[risenW/segment-3gs](https://github.com/risenW/segment-3gs) for the pipeline, the vocabulary and the honest README this builds on. [SpAItial](https://spaitial.ai) for the worlds. Scene image: _(source)_.
+[risenW/segment-3gs](https://github.com/risenW/segment-3gs) for the pipeline, the vocabulary and the honest README this builds on. [SpAItial](https://spaitial.ai) for the worlds — the workshop scene was generated in SpAItial (Echo-2, image to world) from an AI-generated reference photo. Floor plan: AI-generated reference.
