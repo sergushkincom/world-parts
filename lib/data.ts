@@ -164,6 +164,9 @@ export const STORAGE_KEYS = {
   concepts: "world-parts.concepts.v1",
 } as const
 
+/** Grey steel cabinet on the back wall, right of the pegboard; the bench covers its lower right. */
+const CABINET_POLYGON: Point[] = [[971, 420], [1072, 418], [1078, 500], [1037, 503], [1040, 598], [974, 598]]
+
 /** Seed world: what a returning user would have after an earlier batch sweep. */
 export const SEED_OBJECTS: WorldObject[] = [
   {
@@ -244,7 +247,7 @@ export const SEED_OBJECTS: WorldObject[] = [
     votes: 8,
     status: "lifted",
     firstSegmentedAt: "2026-11-04T09:23:20.000Z",
-    polygon: [[92, 240], [205, 240], [290, 285], [360, 310], [470, 312], [485, 740], [385, 835], [322, 870], [245, 950], [135, 925]],
+    polygon: CABINET_POLYGON,
   },
   {
     id: "obj-extinguisher",
@@ -287,7 +290,7 @@ export const MOCK_DETECTIONS: Record<string, { splats: number; views: number; vo
     splats: 31_400,
     views: 10,
     votes: 8,
-    polygon: [[92, 240], [205, 240], [290, 285], [360, 310], [470, 312], [485, 740], [385, 835], [322, 870], [245, 950], [135, 925]],
+    polygon: CABINET_POLYGON,
   },
   hose: {
     splats: 4_870,

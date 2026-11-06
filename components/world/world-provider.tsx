@@ -295,6 +295,15 @@ export function useWorld() {
   return ctx
 }
 
+/** Stored worlds keep their own objects, but seed outlines follow the data so a corrected mask reaches returning users. */
+function withCurrentSeedPolygons(objects: WorldObject[]): WorldObject[] {
+  const seedById = new Map(SEED_OBJECTS.map((o) => [o.id, o]))
+  return objects.map((o) => {
+    const seed = seedById.get(o.id)
+    return seed && o.polygon ? { ...o, polygon: seed.polygon } : o
+  })
+}
+
 export function WorldProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = React.useReducer(reducer, initialState)
   const stateRef = React.useRef(state)
@@ -305,7 +314,7 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const objects = readJSON(STORAGE_KEYS.objects, isObjectArray)
     const selection = readJSON(STORAGE_KEYS.selection, isStringArray)
-    const loaded = settleInterrupted(objects.value ?? SEED_OBJECTS)
+    const loaded = settleInterrupted(withCurrentSeedPolygons(objects.value ?? SEED_OBJECTS))
     const ids = new Set(loaded.map((o) => o.id))
     dispatch({
       type: "hydrate",

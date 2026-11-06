@@ -17,6 +17,17 @@ function modeFromEvent(e: React.MouseEvent): SelectMode {
   return "only"
 }
 
+/**
+ * Keeps a scaled image edge from pulling inside the viewport, so framing never reveals the backdrop.
+ * When the scaled image is narrower than the viewport it stays centred instead.
+ */
+function clampPan(t: number, s: number, imgStart: number, imgEnd: number, view: number) {
+  const a = imgStart * s
+  const b = imgEnd * s
+  if (b - a <= view) return (view - a - b) / 2
+  return Math.min(-a, Math.max(view - b, t))
+}
+
 export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
   const { state, select, hover, clearSelection, frame } = useWorld()
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -47,7 +58,13 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
     )
     const px = cx * map.k + map.offsetX
     const py = cy * map.k + map.offsetY
-    transform = { s, tx: width / 2 - px * s, ty: height / 2 - py * s }
+    const imgW = SCENE.width * map.k
+    const imgH = SCENE.height * map.k
+    transform = {
+      s,
+      tx: clampPan(width / 2 - px * s, s, map.offsetX, map.offsetX + imgW, width),
+      ty: clampPan(height / 2 - py * s, s, map.offsetY, map.offsetY + imgH, height),
+    }
   }
 
   const toScreen = (o: WorldObject) => {
