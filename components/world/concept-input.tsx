@@ -139,7 +139,16 @@ export function ConceptInput() {
 
       <ul
         aria-label="Suggested concepts"
-        className="no-scrollbar -mx-panel-x flex gap-1.5 px-panel-x panel:flex-wrap max-panel:overflow-x-auto"
+        onScroll={(e) => {
+          const el = e.currentTarget
+          el.dataset.end = String(el.scrollLeft + el.clientWidth >= el.scrollWidth - 2)
+        }}
+        className={cn(
+          "no-scrollbar -mx-panel-x flex gap-1.5 px-panel-x panel:flex-wrap",
+          "max-panel:overflow-x-auto max-panel:overscroll-x-contain",
+          "max-panel:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]",
+          "max-panel:data-[end=true]:[mask-image:none]",
+        )}
       >
         {SUGGESTED_CONCEPTS.map((concept) => {
           const existing = state.objects.find((o) => o.concept === concept)
