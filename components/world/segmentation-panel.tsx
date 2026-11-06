@@ -9,6 +9,7 @@ import { ObjectList } from "@/components/world/object-list"
 import { PanelFooter } from "@/components/world/panel-footer"
 import { PanelHeader } from "@/components/world/panel-header"
 import { PanelRail } from "@/components/world/panel-rail"
+import { ScanRoomBlock } from "@/components/world/scan-room-block"
 import { SheetHandle } from "@/components/world/sheet-handle"
 import { Separator } from "@/components/ui/separator"
 
@@ -58,6 +59,7 @@ export function SegmentationPanel() {
           <ConceptInput />
           <Separator />
           <ObjectList />
+          <ScanRoomBlock />
           <div className="mt-auto bg-card panel:sticky panel:bottom-0">
             <GaussianViewControl />
             <PanelFooter />

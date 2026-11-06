@@ -6,11 +6,16 @@ import { useWorld } from "@/components/world/world-provider"
 
 const SKIP_INSIDE = "input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog'], [role='alertdialog'], [role='slider']"
 
-/** Global keys: G segments, Esc clears selection, ↑/↓ move through the list, Space toggles, 1/2/3 switch Gaussian view. */
-export function useWorldShortcuts() {
+/**
+ * Global keys: G segments, / focuses search, Esc steps out (card → selection → plant),
+ * ↑/↓ move through the list, Space toggles, 1/2/3 switch Gaussian view.
+ */
+export function useWorldShortcuts({ onEscapeRoot }: { onEscapeRoot?: () => void } = {}) {
   const world = useWorld()
   const worldRef = React.useRef(world)
   worldRef.current = world
+  const escapeRootRef = React.useRef(onEscapeRoot)
+  escapeRootRef.current = onEscapeRoot
 
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -19,7 +24,8 @@ export function useWorldShortcuts() {
       if (target.closest?.(SKIP_INSIDE)) return
       if (document.querySelector("[role='alertdialog'], [role='menu']")) return
 
-      const { state, segmentDraft, clearSelection, focusRow, select, setView } = worldRef.current
+      const { state, segmentDraft, clearSelection, closeCard, focusRow, select, setView, conceptInputRef } =
+        worldRef.current
       const onRow = target.dataset?.objectRow !== undefined
       const onBody = target === document.body
 
@@ -29,11 +35,16 @@ export function useWorldShortcuts() {
           e.preventDefault()
           segmentDraft()
           return
+        case "/":
+          e.preventDefault()
+          conceptInputRef.current?.focus()
+          conceptInputRef.current?.select()
+          return
         case "Escape":
-          if (state.selection.length || state.framedId) {
-            e.preventDefault()
-            clearSelection()
-          }
+          e.preventDefault()
+          if (state.cardId) closeCard()
+          else if (state.selection.length || state.framedId) clearSelection()
+          else escapeRootRef.current?.()
           return
         case "ArrowDown":
         case "ArrowUp": {

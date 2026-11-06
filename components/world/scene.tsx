@@ -17,7 +17,7 @@ function modeFromEvent(e: React.MouseEvent): SelectMode {
   return "only"
 }
 
-export function Scene() {
+export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
   const { state, select, hover, clearSelection, frame } = useWorld()
   const containerRef = React.useRef<HTMLDivElement>(null)
   const imgRef = React.useRef<HTMLImageElement>(null)
@@ -190,6 +190,7 @@ export function Scene() {
 
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="flex flex-col items-start gap-2">
+          {topLeft}
           {segmenting && (
             <p className="flex items-center gap-1.5 rounded-full bg-black/75 px-2.5 py-1 text-label font-medium text-scene-ink backdrop-blur-sm">
               <ScanSearchIcon aria-hidden className="size-3.5 text-status-active" />
@@ -210,7 +211,7 @@ export function Scene() {
       </div>
 
       {imageState === "missing" && (
-        <p className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1.5 rounded-md bg-black/60 px-2 py-1 text-label text-scene-ink/80">
+        <p className="pointer-events-none absolute right-3 bottom-3 flex items-center gap-1.5 rounded-md bg-black/60 px-2 py-1 text-label text-scene-ink/80">
           <ImageOffIcon aria-hidden className="size-3.5" />
           {COPY.scenePlaceholder}
         </p>

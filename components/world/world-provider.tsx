@@ -3,7 +3,9 @@
 import * as React from "react"
 import {
   COPY,
+  DEFAULT_LINK_LOCATION,
   DEFAULT_SERVER_TIER,
+  OBJECT_PART_LINKS,
   MOCK_DETECTIONS,
   MOCK_NO_MASK_REASON,
   OBJECT_PALETTE,
@@ -37,9 +39,20 @@ interface WorldState {
   serverStatus: ServerStatus
   draft: string
   notice: Notice | null
+  cardId: string | null
+  cardTab: CardTab
+  partLinks: PartLinks
 }
 
+export type CardTab = "object" | "part"
+export type PartLinks = Record<string, { partNumber: string; location: string }>
+
 type Action =
+  | { type: "openCard"; id: string; tab: CardTab }
+  | { type: "closeCard" }
+  | { type: "setCardTab"; tab: CardTab }
+  | { type: "linkPart"; concept: string; partNumber: string }
+  | { type: "hydrateLinks"; links: PartLinks }
   | { type: "hydrate"; objects: WorldObject[]; selection: string[]; storageOk: boolean }
   | { type: "storageFailed" }
   | { type: "select"; id: string; mode: SelectMode }
@@ -71,6 +84,25 @@ function patchObject(objects: WorldObject[], id: string, patch: Partial<WorldObj
 
 function reducer(state: WorldState, action: Action): WorldState {
   switch (action.type) {
+    case "openCard":
+      return { ...state, cardId: action.id, cardTab: action.tab }
+    case "closeCard":
+      return state.cardId ? { ...state, cardId: null } : state
+    case "setCardTab":
+      return { ...state, cardTab: action.tab }
+    case "linkPart":
+      return {
+        ...state,
+        partLinks: {
+          ...state.partLinks,
+          [action.concept]: {
+            partNumber: action.partNumber,
+            location: state.partLinks[action.concept]?.location ?? DEFAULT_LINK_LOCATION,
+          },
+        },
+      }
+    case "hydrateLinks":
+      return { ...state, partLinks: action.links }
     case "hydrate":
       return {
         ...state,
@@ -174,11 +206,13 @@ function reducer(state: WorldState, action: Action): WorldState {
         anchorId: state.anchorId === action.id ? null : state.anchorId,
         hoveredId: state.hoveredId === action.id ? null : state.hoveredId,
         framedId: state.framedId === action.id ? null : state.framedId,
+        cardId: state.cardId === action.id ? null : state.cardId,
       }
     }
     case "clearAll":
       return {
         ...state,
+        cardId: null,
         objects: [],
         selection: [],
         activeId: null,
@@ -210,6 +244,20 @@ const initialState: WorldState = {
   serverStatus: "checking",
   draft: "",
   notice: null,
+  cardId: null,
+  cardTab: "object",
+  partLinks: OBJECT_PART_LINKS,
+}
+
+function isPartLinks(value: unknown): value is PartLinks {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.values(value).every(
+      (v) => v && typeof v === "object" && typeof v.partNumber === "string" && typeof v.location === "string",
+    )
+  )
 }
 
 function isObjectArray(value: unknown): value is WorldObject[] {
@@ -265,6 +313,10 @@ interface WorldContextValue {
   loadSeed: () => void
   setServerTier: (tier: ServerTierId) => void
   setServerStatus: (status: ServerStatus) => void
+  openCard: (id: string, tab?: CardTab) => void
+  closeCard: () => void
+  setCardTab: (tab: CardTab) => void
+  linkPart: (concept: string, partNumber: string) => void
 }
 
 const WorldContext = React.createContext<WorldContextValue | null>(null)
@@ -293,6 +345,8 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
       selection: (selection.value ?? []).filter((id) => ids.has(id)),
       storageOk: objects.ok && selection.ok,
     })
+    const links = readJSON(STORAGE_KEYS.partLinks, isPartLinks)
+    if (links.value) dispatch({ type: "hydrateLinks", links: { ...OBJECT_PART_LINKS, ...links.value } })
     const t = window.setTimeout(() => dispatch({ type: "setServerStatus", status: "online" }), TIMING.serverCheckMs)
     return () => window.clearTimeout(t)
   }, [])
@@ -302,6 +356,11 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
     const ok = writeJSON(STORAGE_KEYS.objects, state.objects) && writeJSON(STORAGE_KEYS.selection, state.selection)
     if (!ok) dispatch({ type: "storageFailed" })
   }, [state.hydrated, state.objects, state.selection])
+
+  React.useEffect(() => {
+    if (!state.hydrated || state.partLinks === OBJECT_PART_LINKS) return
+    if (!writeJSON(STORAGE_KEYS.partLinks, state.partLinks)) dispatch({ type: "storageFailed" })
+  }, [state.hydrated, state.partLinks])
 
   // Mock segmentation queue: one segment view at a time, TIMING.segmentMsPerView each.
   React.useEffect(() => {
@@ -424,6 +483,10 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
       loadSeed: () => dispatch({ type: "loadSeed" }),
       setServerTier: (tier) => dispatch({ type: "setServerTier", tier }),
       setServerStatus: (status) => dispatch({ type: "setServerStatus", status }),
+      openCard: (id, tab = "object") => dispatch({ type: "openCard", id, tab }),
+      closeCard: () => dispatch({ type: "closeCard" }),
+      setCardTab: (tab) => dispatch({ type: "setCardTab", tab }),
+      linkPart: (concept, partNumber) => dispatch({ type: "linkPart", concept, partNumber }),
     }
   }, [state, registerRow, focusRow, submitConcept])
 

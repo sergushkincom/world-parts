@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CrosshairIcon, MoreHorizontalIcon, PencilIcon, RotateCwIcon, Trash2Icon } from "lucide-react"
+import { CrosshairIcon, MoreHorizontalIcon, PackageIcon, PencilIcon, RotateCwIcon, Trash2Icon } from "lucide-react"
 import { OBJECT_PALETTE, TIMING, type WorldObject } from "@/lib/data"
 import { formatCount } from "@/lib/geometry"
 import { cn } from "@/lib/utils"
@@ -35,7 +35,7 @@ function metaLine(o: WorldObject) {
 }
 
 export function ObjectRow({ object: o }: { object: WorldObject }) {
-  const { state, select, setActive, hover, frame, rename, remove, retry, registerRow, focusRow } = useWorld()
+  const { state, select, setActive, hover, frame, rename, remove, retry, registerRow, focusRow, openCard } = useWorld()
   const [editing, setEditing] = React.useState(false)
   const openRenameRef = React.useRef(false)
   const selected = state.selection.includes(o.id)
@@ -200,6 +200,15 @@ export function ObjectRow({ object: o }: { object: WorldObject }) {
               <CrosshairIcon aria-hidden />
               Frame
               <DropdownMenuShortcut>F</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                select(o.id, "only")
+                openCard(o.id, "part")
+              }}
+            >
+              <PackageIcon aria-hidden />
+              Open card
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => (openRenameRef.current = true)}>
               <PencilIcon aria-hidden />
