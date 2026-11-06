@@ -75,7 +75,6 @@ export function FloorPlan({
       {ROOMS.map((room) => {
         const lit = hits?.has(room.id) ?? false
         const dim = hits !== null && !lit && focusRoom !== room.id
-        const showName = hovered === room.id || focusRoom === room.id || lit
         const status = room.scanned ? "scanned" : "not scanned"
         return (
           <button
@@ -103,7 +102,10 @@ export function FloorPlan({
                 className={cn("size-1.5 rounded-full", room.scanned ? "bg-status-lifted" : "bg-status-queued")}
               />
             )}
-            <span className={cn(!showName && "hidden [@media(hover:none)]:inline")}>{room.name}</span>
+            <span>{room.name}</span>
+            <span aria-hidden className="text-muted-foreground">
+              ·
+            </span>
             <span className={cn(room.scanned ? "text-status-lifted" : "text-muted-foreground")}>{status}</span>
           </button>
         )
