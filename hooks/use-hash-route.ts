@@ -7,17 +7,17 @@ export type Route =
   | { level: "plant"; q: string }
   | { level: "room"; room: RoomId; object: string | null; q: string }
 
-const HASH_EVENT = "world-parts:hashchange"
+const ROUTE_EVENT = "world-parts:routechange"
 
-export function parseHash(hash: string): Route {
-  const params = new URLSearchParams(hash.replace(/^#/, ""))
+export function parseRoute(search: string): Route {
+  const params = new URLSearchParams(search)
   const q = params.get("q") ?? ""
   const room = ROOMS.find((r) => r.id === params.get("room") && r.scanned)
   if (room) return { level: "room", room: room.id, object: params.get("object"), q }
   return { level: "plant", q }
 }
 
-export function formatHash(route: Route): string {
+export function formatRoute(route: Route): string {
   const params = new URLSearchParams()
   if (route.level === "room") {
     params.set("room", route.room)
@@ -25,41 +25,38 @@ export function formatHash(route: Route): string {
   }
   if (route.q.trim()) params.set("q", route.q.trim())
   const body = params.toString()
-  // URLSearchParams has no bare-key form, so "plant" is written by hand.
-  if (route.level === "plant") return body ? `#plant&${body}` : "#plant"
-  return `#${body}`
+  return body ? `?${body}` : ""
 }
 
 function subscribe(onChange: () => void) {
-  window.addEventListener("hashchange", onChange)
-  window.addEventListener(HASH_EVENT, onChange)
+  window.addEventListener("popstate", onChange)
+  window.addEventListener(ROUTE_EVENT, onChange)
   return () => {
-    window.removeEventListener("hashchange", onChange)
-    window.removeEventListener(HASH_EVENT, onChange)
+    window.removeEventListener("popstate", onChange)
+    window.removeEventListener(ROUTE_EVENT, onChange)
   }
 }
 
 /**
- * Navigation lives in the URL hash so every view is linkable and the browser back button
- * walks back through levels. `replace` updates the URL without adding a history entry
+ * The route lives in the query string, not the hash: the hash would have to be a valid CSS
+ * selector, since anchor-scroll handlers pass it to `querySelector`. Every view stays linkable
+ * and the back button walks back through levels. `replace` skips adding a history entry
  * (used while typing a search).
  */
 export function navigate(route: Route, { replace = false } = {}) {
-  const hash = formatHash(route)
-  if (window.location.hash === hash) return
-  if (replace) {
-    window.history.replaceState(window.history.state, "", hash)
-    window.dispatchEvent(new Event(HASH_EVENT))
-  } else {
-    window.location.hash = hash
-  }
+  const search = formatRoute(route)
+  if (window.location.search === search) return
+  const url = `${window.location.pathname}${search}`
+  if (replace) window.history.replaceState(null, "", url)
+  else window.history.pushState(null, "", url)
+  window.dispatchEvent(new Event(ROUTE_EVENT))
 }
 
 export function useHashRoute(): Route {
-  const hash = React.useSyncExternalStore(
+  const search = React.useSyncExternalStore(
     subscribe,
-    () => window.location.hash,
+    () => window.location.search,
     () => "",
   )
-  return React.useMemo(() => parseHash(hash), [hash])
+  return React.useMemo(() => parseRoute(search), [search])
 }

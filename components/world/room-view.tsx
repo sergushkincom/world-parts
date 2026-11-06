@@ -12,7 +12,7 @@ import { SegmentationPanel } from "@/components/world/segmentation-panel"
 
 type RoomRoute = { room: RoomId; object: string | null; q: string }
 
-/** Keeps `#room=…&object=…` and the open card in step, in both directions. */
+/** Keeps `?room=…&object=…` and the open card in step, in both directions. */
 function useObjectInHash(route: RoomRoute) {
   const { state, select, frame, openCard, setDraft } = useWorld()
   const routeRef = React.useRef(route)
