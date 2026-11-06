@@ -9,7 +9,7 @@ export const PART_FILTERS: { id: PartFilter; label: string; test: (p: Part) => b
   { id: "all", label: "All", test: () => true },
   { id: "low", label: "Low stock", test: isLowStock },
   { id: "idle", label: "Idle", test: isIdle },
-  { id: "room", label: "In this room", test: (p) => partInRoom(p, WORLD_ROOM) },
+  { id: "room", label: "In world", test: (p) => partInRoom(p, WORLD_ROOM) },
 ]
 
 /** Part numbers are typed with or without dashes and spaces: "6205 2rs" finds BRG-6205-2RS. */

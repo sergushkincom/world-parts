@@ -139,7 +139,7 @@ export function PartsView({ q, part }: { q: string; part: string | null }) {
                 key={f.id}
                 value={f.id}
                 disabled={counts[f.id] === 0 && filter !== f.id}
-                title={f.id === "room" ? `Stored in the ${roomName}` : undefined}
+                title={f.id === "room" ? `Stored or installed in the scanned ${roomName}` : undefined}
                 className="gap-1.5 px-2.5"
               >
                 {f.label}

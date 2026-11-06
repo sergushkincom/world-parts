@@ -3,7 +3,7 @@
 import * as React from "react"
 import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, BoxIcon, MapPinIcon } from "lucide-react"
 import type { Part, StoredLocation } from "@/lib/data"
-import { isInWorld, locationLabel } from "@/lib/parts"
+import { installedLabel, isInWorld, locationLabel } from "@/lib/parts"
 import type { Sort, SortKey } from "@/lib/parts-list"
 import { cn } from "@/lib/utils"
 import { PartStatusChips } from "@/components/parts/part-status"
@@ -132,7 +132,7 @@ export function PartsTable({
                     ))}
                   </ul>
                 ) : (
-                  <span className="text-muted-foreground">—</span>
+                  <span className="text-muted-foreground">{installedLabel(p) ?? "—"}</span>
                 )}
               </td>
               <td className="border-b px-3 py-2 align-top">
@@ -160,7 +160,11 @@ export function PartsTable({
               <span className="text-row font-medium">{p.name}</span>
             </button>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {p.storedIn[0] && <LocationLink part={p} location={p.storedIn[0]} />}
+              {p.storedIn[0] ? (
+                <LocationLink part={p} location={p.storedIn[0]} />
+              ) : (
+                installedLabel(p) && <span className="text-label text-muted-foreground">{installedLabel(p)}</span>
+              )}
               {p.storedIn.length > 1 && (
                 <span className="text-label text-muted-foreground">{`+${p.storedIn.length - 1} more`}</span>
               )}

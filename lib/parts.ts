@@ -57,6 +57,15 @@ export function locationLabel(l: StoredLocation, opts?: { shelf?: boolean }) {
   return `${getRoom(locationRoom(l)).name} · ${placeLabel(l, opts)} (${l.qty})`
 }
 
+/** Where an installed-only part lives: "installed in pump P-104". */
+export function installedLabel(part: Part) {
+  const units = part.installedIn.map((id) => {
+    const eq = getEquipment(id)
+    return eq ? `${eq.name.toLowerCase()} ${eq.assetId}` : id
+  })
+  return units.length ? `installed in ${units.join(", ")}` : null
+}
+
 export function partsInstalledIn(assetId: string) {
   return PARTS.filter((p) => p.installedIn.includes(assetId))
 }
