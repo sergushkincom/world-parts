@@ -12,8 +12,8 @@ export function AppShell() {
   useRoomTransition(route, viewRef)
 
   return (
-    <div className="h-dvh overflow-hidden">
-      <div ref={viewRef} className="h-dvh will-change-transform">
+    <div className="relative isolate h-dvh overflow-hidden">
+      <div ref={viewRef} className="relative z-10 h-dvh will-change-transform">
         {route.level === "plant" ? <PlantView q={route.q} /> : <RoomView route={route} />}
       </div>
     </div>

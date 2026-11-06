@@ -51,6 +51,7 @@ export const TIMING = {
   serverCheckMs: 700,
   /** Plant ↔ room zoom-and-fade. */
   roomTransitionMs: 300,
+  roomCrossfadeMs: 150,
   roomTransitionEasing: "cubic-bezier(0.2, 0, 0, 1)",
 } as const
 
