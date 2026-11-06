@@ -176,6 +176,13 @@
   }
 }
 
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .overlay-pulse {
   animation: overlay-pulse 1.6s ease-in-out infinite;
 }

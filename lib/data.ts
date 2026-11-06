@@ -129,7 +129,8 @@ export const GAUSSIAN_VIEWS: { id: GaussianView; label: string; fullLabel: strin
 
 export const LAYOUT = {
   /** Bottom-sheet snap heights under 900 px, as a fraction of viewport height. */
-  sheetSnaps: [0.3, 0.56, 0.86],
+  /** "half" is sized so a 375 × 667 phone shows the first 3 object rows without scrolling the sheet. */
+  sheetSnaps: [0.3, 0.62, 0.86],
   sheetSnapLabels: ["peek", "half", "full"],
   sheetDefaultSnap: 1,
   /** Zoom range used when framing an object in the still. */

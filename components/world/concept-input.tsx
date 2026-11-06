@@ -24,7 +24,7 @@ export function ConceptInput() {
   const isError = state.notice?.tone === "error" || state.serverStatus === "unreachable"
 
   return (
-    <section aria-label="Segment a concept" className="flex flex-col gap-2.5 px-panel-x py-section-y">
+    <section aria-label="Segment a concept" className="flex flex-col gap-2.5 px-panel-x py-section-y max-panel:gap-2 max-panel:py-3">
       <form
         className="flex flex-col gap-2"
         onSubmit={(e) => {
@@ -35,7 +35,9 @@ export function ConceptInput() {
         <label htmlFor="concept-input" className="text-label font-medium uppercase tracking-wider text-muted-foreground">
           {COPY.conceptLabel}
         </label>
+        <div className="flex items-center gap-2">
         <Input
+          className="min-w-0 flex-1"
           id="concept-input"
           ref={conceptInputRef}
           value={state.draft}
@@ -51,24 +53,26 @@ export function ConceptInput() {
           aria-invalid={state.notice?.tone === "error" || undefined}
           aria-describedby={hintId}
         />
-        <div className="flex items-start gap-3">
-          <p
-            id={hintId}
-            aria-live="polite"
-            className={cn("min-w-0 flex-1 pt-1 text-label leading-snug text-muted-foreground", isError && "text-destructive")}
-          >
-            {hint}
-          </p>
-          <Button type="submit" size="sm" disabled={offline || !state.draft.trim()} aria-keyshortcuts="g">
+          <Button type="submit" disabled={offline || !state.draft.trim()} aria-keyshortcuts="g">
             {COPY.segmentButton}
-            <Kbd aria-hidden className="bg-primary-foreground/15 text-primary-foreground">
+            <Kbd aria-hidden className="bg-primary-foreground/15 text-primary-foreground max-panel:hidden">
               G
             </Kbd>
           </Button>
         </div>
+        <p
+          id={hintId}
+          aria-live="polite"
+          className={cn("text-label leading-snug text-muted-foreground", isError && "text-destructive")}
+        >
+          {hint}
+        </p>
       </form>
 
-      <ul aria-label="Suggested concepts" className="flex flex-wrap gap-1.5">
+      <ul
+        aria-label="Suggested concepts"
+        className="no-scrollbar -mx-panel-x flex gap-1.5 px-panel-x panel:flex-wrap max-panel:overflow-x-auto"
+      >
         {SUGGESTED_CONCEPTS.map((concept) => {
           const existing = state.objects.find((o) => o.concept === concept)
           const done = existing && DRAWABLE.includes(existing.status)
