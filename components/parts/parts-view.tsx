@@ -79,9 +79,9 @@ export function PartsView({ q, part }: { q: string; part: string | null }) {
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
       <header className="flex flex-col gap-3 border-b px-4 pt-4 pb-3 md:px-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 max-[600px]:flex-wrap">
           <h1 className="hidden shrink-0 text-row font-semibold sm:block">Parts</h1>
-          <div role="search" className="relative min-w-0 flex-1 sm:max-w-xl">
+          <div role="search" className="relative min-w-0 flex-1 max-[600px]:basis-full sm:max-w-xl">
             <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               ref={inputRef}
@@ -119,7 +119,7 @@ export function PartsView({ q, part }: { q: string; part: string | null }) {
               )}
             </span>
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto max-[600px]:ml-0">
             <ViewSwitch view="parts" q={q} />
           </div>
         </div>
