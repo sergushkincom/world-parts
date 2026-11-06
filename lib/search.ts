@@ -6,6 +6,7 @@ import {
   type Equipment,
   type Part,
   type Room,
+  type RoomId,
   type StoredLocation,
   type WorldObject,
 } from "@/lib/data"
@@ -45,14 +46,23 @@ export function equipmentMatches(equipment: Equipment | undefined, object: World
 export type WorldHit = { object: WorldObject; equipment: Equipment | undefined }
 export type InventoryHit = { part: Part; location: StoredLocation }
 
-export type RoomResults =
-  | { room: Room; kind: "world"; hits: WorldHit[] }
-  | { room: Room; kind: "inventory"; hits: InventoryHit[] }
+/** What a plan result points at: the equipment itself, a spare in a bin, a part fitted in a unit, or a shelf with no scene. */
+export type PlanHit =
+  | { kind: "equipment"; object: WorldObject; equipment: Equipment | undefined }
+  | { kind: "stored"; part: Part; location: StoredLocation; object: WorldObject; equipment: Equipment }
+  | { kind: "installed"; part: Part; object: WorldObject; equipment: Equipment }
+  | { kind: "inventory"; part: Part; location: StoredLocation }
+
+export type RoomResults = { room: Room; inWorld: boolean; hits: PlanHit[] }
 
 /** One flat, ordered option list so the combobox can step through every result with ↑/↓. */
-export type SearchOption =
-  | { id: string; kind: "world"; room: Room; hit: WorldHit }
-  | { id: string; kind: "inventory"; room: Room; hit: InventoryHit }
+export type SearchOption = { id: string; room: Room; hit: PlanHit }
+
+const KIND_ORDER: Record<PlanHit["kind"], number> = { equipment: 0, stored: 1, installed: 2, inventory: 3 }
+
+function hitKey(hit: PlanHit, i: number) {
+  return hit.kind === "equipment" ? hit.object.id : `${hit.kind}-${hit.part.partNo}-${i}`
+}
 
 /** Equipment matches by name or asset ID, or through a part fitted in it or stored in its bins. */
 export function searchWorld(q: string, objects: WorldObject[], isInWorld: (o: WorldObject) => boolean): WorldHit[] {
@@ -72,24 +82,49 @@ export function searchWorld(q: string, objects: WorldObject[], isInWorld: (o: Wo
     })
 }
 
-export function searchPlant(q: string, worldHits: WorldHit[]): { groups: RoomResults[]; options: SearchOption[] } {
+/**
+ * Plan results grouped by room. `worldObjects` are the objects drawn in the scene: a hit is only
+ * "in world" when the equipment it points at is actually there to frame.
+ */
+export function searchPlant(q: string, worldObjects: WorldObject[]): { groups: RoomResults[]; options: SearchOption[] } {
   if (!isSearchable(q)) return { groups: [], options: [] }
-  const groups: RoomResults[] = []
-  if (worldHits.length) groups.push({ room: getRoom(WORLD_ROOM), kind: "world", hits: worldHits })
 
-  const matchingParts = PARTS.filter((p) => partMatches(p, q))
-  for (const room of ROOMS) {
-    if (room.scanned) continue
-    const hits = matchingParts.flatMap((part) =>
-      part.storedIn.filter((l) => locationRoom(l) === room.id).map((location) => ({ part, location })),
-    )
-    if (hits.length) groups.push({ room, kind: "inventory", hits })
+  const placed = worldObjects.map((object) => ({ object, equipment: equipmentFor(object) }))
+  const byAsset = new Map(
+    placed.flatMap(({ object, equipment }) => (equipment ? [[equipment.assetId, { object, equipment }] as const] : [])),
+  )
+  const hitsByRoom = new Map<RoomId, PlanHit[]>()
+  const add = (room: RoomId, hit: PlanHit) => hitsByRoom.set(room, [...(hitsByRoom.get(room) ?? []), hit])
+
+  for (const { object, equipment } of placed) {
+    if (equipmentMatches(equipment, object, q)) add(WORLD_ROOM, { kind: "equipment", object, equipment })
   }
 
-  const options: SearchOption[] = groups.flatMap((g): SearchOption[] =>
-    g.kind === "world"
-      ? g.hits.map((hit) => ({ id: `opt-${g.room.id}-${hit.object.id}`, kind: "world", room: g.room, hit }))
-      : g.hits.map((hit, i) => ({ id: `opt-${g.room.id}-${hit.part.partNo}-${i}`, kind: "inventory", room: g.room, hit })),
+  for (const part of PARTS.filter((p) => partMatches(p, q))) {
+    for (const location of part.storedIn) {
+      const unit = isBin(location) ? byAsset.get(location.assetId) : undefined
+      if (unit) add(WORLD_ROOM, { kind: "stored", part, location, ...unit })
+      else add(locationRoom(location), { kind: "inventory", part, location })
+    }
+    for (const assetId of part.installedIn) {
+      const unit = byAsset.get(assetId)
+      if (unit) add(WORLD_ROOM, { kind: "installed", part, ...unit })
+    }
+  }
+
+  const groups: RoomResults[] = ROOMS.flatMap((room) => {
+    const hits = hitsByRoom.get(room.id)
+    if (!hits?.length) return []
+    return [{ room, inWorld: room.id === WORLD_ROOM, hits: hits.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) }]
+  }).sort((a, b) => Number(b.inWorld) - Number(a.inWorld))
+
+  const options = groups.flatMap((g) =>
+    g.hits.map((hit, i) => ({ id: `opt-${g.room.id}-${hitKey(hit, i)}`, room: g.room, hit })),
   )
   return { groups, options }
+}
+
+/** Shelf hits for a room with no scene, as the room note lists them. */
+export function inventoryHits(group: RoomResults | undefined): InventoryHit[] {
+  return (group?.hits ?? []).flatMap((h) => (h.kind === "inventory" ? [{ part: h.part, location: h.location }] : []))
 }

@@ -2,9 +2,9 @@
 
 import * as React from "react"
 import { PLAN, WORLD_ROOM, type Room, type RoomId } from "@/lib/data"
-import { getRoom, isSearchable, searchPlant, type InventoryHit, type SearchOption } from "@/lib/search"
+import { getRoom, inventoryHits, isSearchable, searchPlant, type SearchOption } from "@/lib/search"
 import { navigate } from "@/hooks/use-hash-route"
-import { useWorldHits } from "@/hooks/use-world-hits"
+import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { FloorPlan } from "@/components/plant/floor-plan"
 import { PlantSearch } from "@/components/plant/plant-search"
 import { RoomNote } from "@/components/plant/room-note"
@@ -18,33 +18,35 @@ export function PlantView({ q, pin = null }: { q: string; pin?: RoomId | null })
   const noteRef = React.useRef(noteRoom)
   noteRef.current = noteRoom
   const inputRef = React.useRef<HTMLInputElement>(null)
-  const worldHits = useWorldHits(q)
-  const { groups, options } = React.useMemo(() => searchPlant(q, worldHits), [q, worldHits])
+  const { state } = useWorld()
+  const worldObjects = React.useMemo(() => state.objects.filter((o) => DRAWABLE.includes(o.status)), [state.objects])
+  const { groups, options } = React.useMemo(() => searchPlant(q, worldObjects), [q, worldObjects])
   const hitRooms = React.useMemo(
     () => (isSearchable(q) ? new Set(groups.map((g) => g.room.id)) : null),
     [q, groups],
   )
 
-  const noteHits: InventoryHit[] = React.useMemo(() => {
-    const group = groups.find((g) => g.room.id === noteRoom)
-    return group?.kind === "inventory" ? group.hits : []
-  }, [groups, noteRoom])
+  const noteHits = React.useMemo(
+    () => inventoryHits(groups.find((g) => g.room.id === noteRoom)),
+    [groups, noteRoom],
+  )
 
   const setQuery = (next: string) => navigate({ level: "plant", q: next }, { replace: true })
 
-  const openOption = (option: SearchOption) => {
-    if (option.kind === "world") {
-      navigate({ level: "room", room: WORLD_ROOM, object: option.hit.object.concept, q })
-    } else {
-      setNoteRoom(option.room.id)
+  const openOption = ({ hit, room }: SearchOption) => {
+    if (hit.kind === "inventory") {
+      setNoteRoom(room.id)
+      return
     }
+    const part = hit.kind === "equipment" ? null : hit.part.partNo
+    navigate({ level: "room", room: WORLD_ROOM, object: hit.object.concept, part, q })
   }
 
   const openRoom = (room: Room) => {
     if (room.scanned) {
-      const match = room.id === WORLD_ROOM ? options.find((o) => o.kind === "world") : undefined
-      const object = match?.kind === "world" ? match.hit.object.concept : null
-      navigate({ level: "room", room: room.id, object, q: object ? q : "" })
+      const match = room.id === WORLD_ROOM ? options.find((o) => o.hit.kind !== "inventory") : undefined
+      if (match) openOption(match)
+      else navigate({ level: "room", room: room.id, object: null, q: "" })
     }
     else setNoteRoom((current) => (current === room.id ? null : room.id))
   }
