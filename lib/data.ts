@@ -49,6 +49,9 @@ export const TIMING = {
   sweepViews: 16,
   /** Simulated server health check on load. */
   serverCheckMs: 700,
+  /** Plant ↔ room zoom-and-fade. */
+  roomTransitionMs: 300,
+  roomTransitionEasing: "cubic-bezier(0.2, 0, 0, 1)",
 } as const
 
 /** Below this many agreeing views (votes), a lifted object is marked low confidence. */

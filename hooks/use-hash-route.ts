@@ -7,7 +7,7 @@ export type Route =
   | { level: "plant"; q: string }
   | { level: "room"; room: RoomId; object: string | null; q: string }
 
-const ROUTE_EVENT = "world-parts:routechange"
+export const ROUTE_EVENT = "world-parts:routechange"
 
 export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search)

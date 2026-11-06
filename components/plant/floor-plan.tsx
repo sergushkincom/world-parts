@@ -53,6 +53,7 @@ export function FloorPlan({
           return (
             <polygon
               key={room.id}
+              data-room-zone={room.id}
               points={planPoints(room.polygon)}
               vectorEffect="non-scaling-stroke"
               strokeWidth={focused ? 3 : 2}

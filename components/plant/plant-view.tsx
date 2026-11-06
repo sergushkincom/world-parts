@@ -37,7 +37,11 @@ export function PlantView({ q }: { q: string }) {
   }
 
   const openRoom = (room: Room) => {
-    if (room.scanned) navigate({ level: "room", room: room.id, object: null, q: "" })
+    if (room.scanned) {
+      const match = room.id === WORLD_ROOM ? options.find((o) => o.kind === "world") : undefined
+      const object = match?.kind === "world" ? match.hit.object.concept : null
+      navigate({ level: "room", room: room.id, object, q: object ? q : "" })
+    }
     else setNoteRoom((current) => (current === room.id ? null : room.id))
   }
 
