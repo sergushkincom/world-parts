@@ -37,8 +37,8 @@ export interface ServerTier {
 /** Scene coordinate space. Polygons are authored in this box and scaled like object-fit: cover. */
 export const SCENE = {
   imageSrc: "/scene.jpg",
-  width: 1600,
-  height: 900,
+  width: 2048,
+  height: 1152,
   alt: "Still frame of a factory workshop interior",
 } as const
 
@@ -132,7 +132,7 @@ export const LAYOUT = {
 } as const
 
 export const STORAGE_KEYS = {
-  objects: "world-parts.objects.v1",
+  objects: "world-parts.objects.v2",
   selection: "world-parts.selection.v1",
   concepts: "world-parts.concepts.v1",
 } as const
@@ -150,7 +150,7 @@ export const SEED_OBJECTS: WorldObject[] = [
     status: "lifted",
     firstSegmentedAt: "2026-11-04T09:12:00.000Z",
     polygon: [
-      [250, 600], [300, 545], [395, 530], [470, 560], [490, 640], [470, 730], [380, 770], [285, 750], [240, 690],
+      [790, 660], [830, 632], [880, 640], [925, 655], [960, 672], [968, 710], [945, 748], [870, 752], [800, 745], [785, 705],
     ],
   },
   {
@@ -163,7 +163,7 @@ export const SEED_OBJECTS: WorldObject[] = [
     votes: 9,
     status: "lifted",
     firstSegmentedAt: "2026-11-04T09:14:30.000Z",
-    polygon: [[610, 395], [645, 372], [690, 380], [705, 420], [690, 462], [645, 475], [612, 452]],
+    polygon: [[1458, 345], [1520, 335], [1590, 325], [1590, 370], [1572, 440], [1500, 445], [1458, 440], [1455, 395]],
   },
   {
     id: "obj-motor",
@@ -175,7 +175,7 @@ export const SEED_OBJECTS: WorldObject[] = [
     votes: 3,
     status: "low_confidence",
     firstSegmentedAt: "2026-11-04T09:18:10.000Z",
-    polygon: [[820, 590], [880, 555], [985, 560], [1020, 610], [1005, 690], [915, 712], [835, 680]],
+    polygon: [[1330, 600], [1360, 578], [1395, 600], [1440, 640], [1462, 690], [1468, 770], [1380, 787], [1278, 745], [1285, 680]],
   },
   {
     id: "obj-pallet",
@@ -187,7 +187,9 @@ export const SEED_OBJECTS: WorldObject[] = [
     votes: 2,
     status: "low_confidence",
     firstSegmentedAt: "2026-11-04T09:21:45.000Z",
-    polygon: [[1090, 755], [1150, 715], [1390, 720], [1430, 770], [1405, 835], [1120, 840]],
+    polygon: [
+      [1488, 660], [1625, 648], [1698, 668], [1695, 700], [1600, 750], [1610, 880], [1890, 925], [1885, 990], [1745, 1045], [1462, 872],
+    ],
   },
   {
     id: "obj-cabinet",
@@ -212,7 +214,7 @@ export const SEED_OBJECTS: WorldObject[] = [
     votes: 7,
     status: "lifted",
     firstSegmentedAt: "2026-11-04T09:25:05.000Z",
-    polygon: [[112, 430], [140, 412], [168, 432], [172, 545], [150, 568], [120, 562], [108, 540]],
+    polygon: [[480, 428], [487, 418], [494, 428], [497, 445], [496, 490], [478, 491], [476, 445]],
   },
 ]
 
@@ -221,16 +223,21 @@ export const SEED_OBJECTS: WorldObject[] = [
  * Any concept not listed here fails with a "no mask" reason.
  */
 export const MOCK_DETECTIONS: Record<string, { splats: number; views: number; votes: number; polygon: Point[] }> = {
-  cabinet: { splats: 31_400, views: 10, votes: 8, polygon: [[1350, 250], [1515, 245], [1525, 630], [1355, 640]] },
+  cabinet: {
+    splats: 31_400,
+    views: 10,
+    votes: 8,
+    polygon: [[92, 240], [205, 240], [290, 285], [360, 310], [470, 312], [485, 740], [385, 835], [322, 870], [245, 950], [135, 925]],
+  },
   hose: {
     splats: 4_870,
     views: 7,
     votes: 5,
-    polygon: [[500, 700], [560, 660], [640, 680], [720, 640], [760, 660], [700, 700], [630, 715], [560, 730]],
+    polygon: [[1580, 330], [1640, 285], [1705, 290], [1760, 252], [1880, 245], [1925, 300], [1915, 430], [1840, 475], [1700, 465], [1580, 450]],
   },
-  drum: { splats: 7_230, views: 5, votes: 3, polygon: [[1180, 525], [1290, 520], [1300, 700], [1185, 705]] },
-  ladder: { splats: 5_120, views: 9, votes: 8, polygon: [[1040, 180], [1090, 175], [1135, 520], [1085, 525]] },
-  workbench: { splats: 26_900, views: 12, votes: 11, polygon: [[560, 520], [800, 505], [815, 560], [575, 578]] },
+  drum: { splats: 7_230, views: 5, votes: 3, polygon: [[1510, 672], [1651, 666], [1664, 896], [1517, 902]] },
+  ladder: { splats: 5_120, views: 9, votes: 8, polygon: [[1331, 230], [1395, 224], [1453, 666], [1389, 672]] },
+  workbench: { splats: 26_900, views: 12, votes: 11, polygon: [[717, 666], [1024, 646], [1043, 717], [736, 740]] },
 }
 
 export const MOCK_NO_MASK_REASON = (concept: string) => `No mask above threshold for "${concept}" in this view`
