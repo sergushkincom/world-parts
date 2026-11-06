@@ -24,6 +24,12 @@ export interface WorldObject {
   firstSegmentedAt: string | null
   polygon: Point[] | null
   startedAt?: number
+  /** Set on registered equipment. */
+  assetId?: string
+  kind?: "equipment"
+  room?: RoomId
+  /** Only the parts cabinet has bins. */
+  bins?: string[]
 }
 
 export interface ServerTier {
@@ -107,15 +113,16 @@ export const UNSUPPORTED_CONCEPTS = [
 
 export const COPY = {
   panelTitle: "SAM3 · lift to 3D",
-  conceptLabel: "Find a part or object",
-  conceptPlaceholder: "Find a part or object — name or part number",
+  conceptLabel: "Find a part or equipment",
+  conceptPlaceholder: "Find a part or equipment — name or part number",
   searchHintRoom: "Enter opens a match · no match segments the term in this view.",
   noResults: (q: string) => `No part called '${q}' — try a name or a part number`,
   notScannedNote: "Not scanned yet — scan this room to locate parts in 3D",
   scanRoomTooltip: "needs a capture",
   backToPlant: "Plant",
   scanForMore: "Scan room for more objects…",
-  noPartLinked: "No part linked yet — link one",
+  notEquipment: "Not registered equipment — no parts on file",
+  noPartsInUnit: "No parts on file for this unit",
   openInPartsSystem: "Open in parts system ↗",
   conceptLimit: "Needs a concept — 'segment everything' isn't supported.",
   segmentButton: "Segment view",
@@ -151,8 +158,7 @@ export const LAYOUT = {
 } as const
 
 export const STORAGE_KEYS = {
-  objects: "world-parts.objects.v3",
-  partLinks: "world-parts.part-links.v1",
+  objects: "world-parts.objects.v4",
   selection: "world-parts.selection.v1",
   planHintSeen: "world-parts.plan-hint-seen.v1",
   concepts: "world-parts.concepts.v1",
@@ -164,6 +170,9 @@ export const SEED_OBJECTS: WorldObject[] = [
     id: "obj-pump",
     name: "pump",
     concept: "pump",
+    assetId: "P-104",
+    kind: "equipment",
+    room: "workshop",
     colorIndex: 0,
     splats: 18_420,
     views: 14,
@@ -178,6 +187,9 @@ export const SEED_OBJECTS: WorldObject[] = [
     id: "obj-valve",
     name: "valve",
     concept: "valve",
+    assetId: "V-08",
+    kind: "equipment",
+    room: "workshop",
     colorIndex: 1,
     splats: 3_960,
     views: 11,
@@ -190,6 +202,9 @@ export const SEED_OBJECTS: WorldObject[] = [
     id: "obj-motor",
     name: "motor",
     concept: "motor",
+    assetId: "M-21",
+    kind: "equipment",
+    room: "workshop",
     colorIndex: 2,
     splats: 9_115,
     views: 9,
@@ -202,6 +217,9 @@ export const SEED_OBJECTS: WorldObject[] = [
     id: "obj-pallet",
     name: "pallet",
     concept: "pallet",
+    assetId: "PAL-07",
+    kind: "equipment",
+    room: "workshop",
     colorIndex: 3,
     splats: 22_780,
     views: 6,
@@ -216,19 +234,25 @@ export const SEED_OBJECTS: WorldObject[] = [
     id: "obj-cabinet",
     name: "cabinet",
     concept: "cabinet",
+    assetId: "CAB-01",
+    kind: "equipment",
+    room: "workshop",
+    bins: ["A1", "A2", "B1", "B2", "B3", "C1"],
     colorIndex: 4,
-    splats: null,
-    views: 0,
-    votes: 0,
-    status: "failed",
-    failReason: "sam3 timed out on view 4 (30 s limit) — no mask returned",
-    firstSegmentedAt: null,
-    polygon: null,
+    splats: 31_400,
+    views: 10,
+    votes: 8,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-04T09:23:20.000Z",
+    polygon: [[92, 240], [205, 240], [290, 285], [360, 310], [470, 312], [485, 740], [385, 835], [322, 870], [245, 950], [135, 925]],
   },
   {
     id: "obj-extinguisher",
     name: "extinguisher",
     concept: "extinguisher",
+    assetId: "FE-03",
+    kind: "equipment",
+    room: "workshop",
     colorIndex: 5,
     splats: 2_310,
     views: 8,
@@ -241,6 +265,9 @@ export const SEED_OBJECTS: WorldObject[] = [
     id: "obj-hose",
     name: "hose",
     concept: "hose",
+    assetId: "H-12",
+    kind: "equipment",
+    room: "workshop",
     colorIndex: 6,
     splats: 4_870,
     views: 7,
@@ -345,232 +372,242 @@ export const ROOMS: Room[] = [
 /** The room that holds the 3D world from round 1. */
 export const WORLD_ROOM: RoomId = "workshop"
 
+/* ------------------------------------------------------------------ */
+/* Equipment (level 1) and parts (level 2).                            */
+/* ------------------------------------------------------------------ */
+
+/** A segmented object that is registered equipment. Looked up by concept so saved worlds still resolve. */
+export interface Equipment {
+  assetId: string
+  kind: "equipment"
+  concept: string
+  name: string
+  room: RoomId
+  /** Only the parts store inside a room has bins. */
+  bins?: string[]
+}
+
 export interface SimilarPart {
-  number: string
+  partNo: string
   reason: string
 }
 
+/** Where spares sit. A bin lives in equipment, so its room comes from that equipment. */
+export type BinLocation = { assetId: string; bin: string; qty: number }
+export type RackLocation = { room: RoomId; rack: string; shelf: number; qty: number }
+export type SpotLocation = { room: RoomId; location: string; qty: number }
+export type StoredLocation = BinLocation | RackLocation | SpotLocation
+
 export interface Part {
-  number: string
+  partNo: string
   name: string
   description: string
-  /** Extra words that should find this part. */
-  keywords: string[]
-  supplier: string
+  /** Units on hand: always the sum of storedIn qty. */
+  stock: number
   unitPrice: number
-  /** ISO date; only set when the part hasn't been used recently. */
+  supplier: string
+  /** ISO date of the last stock count. */
+  lastCounted: string
+  /** ISO date; set when the part hasn't moved in a long time. */
   idleSince: string | null
-  similar: [SimilarPart, SimilarPart]
+  similar: SimilarPart[]
+  /** Asset IDs of the equipment this part is fitted in. */
+  installedIn: string[]
+  storedIn: StoredLocation[]
 }
 
 export const CURRENCY = { code: "EUR", locale: "en-GB" } as const
 
-export const PARTS: Part[] = [
+export const INVENTORY = {
+  /** Date the stock figures were taken; idle ages are counted from here. */
+  asOf: "2026-11-06",
+  /** At or below this stock a part is "low". */
+  lowStockMax: 2,
+  /** Idle at least this many months counts for the Idle filter. */
+  idleMonths: 12,
+} as const
+
+/** The seven segmented seed objects, as registered assets. */
+export const EQUIPMENT: Equipment[] = SEED_OBJECTS.flatMap((o) =>
+  o.kind === "equipment" && o.assetId && o.room
+    ? [{ assetId: o.assetId, kind: o.kind, concept: o.concept, name: o.name, room: o.room, bins: o.bins }]
+    : [],
+)
+
+const PART_RECORDS: Omit<Part, "stock">[] = [
   {
-    number: "PMP-2041",
-    name: "Centrifugal pump 2.2 kW",
-    description: "End-suction coolant pump, cast iron, DN40 flange",
-    keywords: ["pump", "coolant"],
+    partNo: "BRG-6205-2RS",
+    name: "Bearing 6205-2RS",
+    description: "Deep-groove ball bearing, 25 × 52 × 15 mm, rubber sealed both sides",
+    unitPrice: 8.4,
     supplier: "Supplier A",
-    unitPrice: 1240,
+    lastCounted: "2026-10-14",
     idleSince: null,
-    similar: [
-      { number: "PMP-2045", reason: "same flange, stainless housing" },
-      { number: "PMP-1980", reason: "older model, 0.4 kW less" },
+    similar: [{ partNo: "BRG-6305", reason: "same bore, heavier series, shielded instead of sealed" }],
+    installedIn: ["P-104", "M-21"],
+    storedIn: [
+      { assetId: "CAB-01", bin: "B3", qty: 2 },
+      { room: "storeroom", rack: "R2", shelf: 3, qty: 6 },
     ],
   },
   {
-    number: "PMP-2045",
-    name: "Centrifugal pump 2.2 kW, stainless",
-    description: "Stainless variant of PMP-2041 for aggressive coolants",
-    keywords: ["pump", "coolant", "stainless"],
+    partNo: "BRG-6305",
+    name: "Bearing 6305",
+    description: "Deep-groove ball bearing, 25 × 62 × 17 mm, metal shields",
+    unitPrice: 12.9,
     supplier: "Supplier A",
-    unitPrice: 1690,
-    idleSince: "2026-06-02",
-    similar: [
-      { number: "PMP-2041", reason: "same flange, cast iron housing" },
-      { number: "PMP-1980", reason: "older model, lower flow" },
-    ],
+    lastCounted: "2026-10-14",
+    idleSince: null,
+    similar: [{ partNo: "BRG-6205-2RS", reason: "same bore, lighter series, sealed instead of shielded" }],
+    installedIn: ["M-21"],
+    storedIn: [{ room: "storeroom", rack: "R2", shelf: 3, qty: 1 }],
   },
   {
-    number: "PMP-1980",
-    name: "Centrifugal pump 1.8 kW",
-    description: "Previous coolant pump generation, kept as a fallback",
-    keywords: ["pump"],
-    supplier: "Supplier A",
-    unitPrice: 880,
-    idleSince: "2025-12-15",
-    similar: [
-      { number: "PMP-2041", reason: "current model, same footprint" },
-      { number: "PMP-2045", reason: "current stainless model" },
-    ],
-  },
-  {
-    number: "VLV-1180",
-    name: "Ball valve DN25",
-    description: "Brass ball valve, lever handle, PN40",
-    keywords: ["valve", "ball valve"],
-    supplier: "Supplier B",
+    partNo: "SEL-25",
+    name: "Mechanical seal 25 mm",
+    description: "Single-spring shaft seal, carbon / ceramic faces, NBR elastomers",
     unitPrice: 46,
+    supplier: "Supplier B",
+    lastCounted: "2026-10-14",
     idleSince: null,
-    similar: [
-      { number: "VLV-1182", reason: "same thread, different seal" },
-      { number: "VLV-1150", reason: "same body, DN20" },
+    similar: [{ partNo: "GSK-SET", reason: "static seals for the same pump casing" }],
+    installedIn: ["P-104"],
+    storedIn: [{ assetId: "CAB-01", bin: "B1", qty: 1 }],
+  },
+  {
+    partNo: "IMP-160",
+    name: "Impeller Ø160",
+    description: "Closed bronze impeller, 160 mm, keyed 25 mm shaft",
+    unitPrice: 214,
+    supplier: "Supplier B",
+    lastCounted: "2026-09-30",
+    idleSince: null,
+    similar: [],
+    installedIn: ["P-104"],
+    storedIn: [],
+  },
+  {
+    partNo: "VBL-A42",
+    name: "V-belt A-42",
+    description: "Classical wrapped V-belt, section A, 1067 mm inside length",
+    unitPrice: 9.6,
+    supplier: "Supplier C",
+    lastCounted: "2026-10-14",
+    idleSince: null,
+    similar: [],
+    installedIn: ["M-21"],
+    storedIn: [
+      { assetId: "CAB-01", bin: "C1", qty: 4 },
+      { room: "storeroom", rack: "R1", shelf: 2, qty: 8 },
     ],
   },
   {
-    number: "VLV-1182",
-    name: "Ball valve DN25, FKM seal",
-    description: "VLV-1180 with FKM seals for oil lines",
-    keywords: ["valve", "ball valve"],
-    supplier: "Supplier B",
-    unitPrice: 58,
-    idleSince: "2026-08-20",
-    similar: [
-      { number: "VLV-1180", reason: "same thread, PTFE seal" },
-      { number: "VLV-1150", reason: "same seal family, DN20" },
+    partNo: "HFL-10",
+    name: "Hydraulic filter 10 µm",
+    description: "Spin-on return-line filter, 10 µm glass fibre, 1″ BSP",
+    unitPrice: 31.5,
+    supplier: "Supplier C",
+    lastCounted: "2026-10-02",
+    idleSince: null,
+    similar: [],
+    installedIn: [],
+    storedIn: [
+      { room: "storeroom", rack: "R3", shelf: 1, qty: 3 },
+      { room: "production", location: "line 2, machine 4", qty: 1 },
     ],
   },
   {
-    number: "VLV-1150",
-    name: "Ball valve DN20",
-    description: "Brass ball valve, lever handle, PN40",
-    keywords: ["valve"],
-    supplier: "Supplier B",
+    partNo: "CTR-25A",
+    name: "Contactor 25 A",
+    description: "3-pole AC-3 contactor, 24 V DC coil, DIN rail",
     unitPrice: 38,
-    idleSince: null,
-    similar: [
-      { number: "VLV-1180", reason: "one size up, DN25" },
-      { number: "VLV-1182", reason: "DN25 with FKM seal" },
-    ],
-  },
-  {
-    number: "MTR-3300",
-    name: "Induction motor 4 kW",
-    description: "IE3 three-phase motor, B3 foot mount, 1450 rpm",
-    keywords: ["motor", "drive"],
-    supplier: "Supplier C",
-    unitPrice: 610,
-    idleSince: null,
-    similar: [
-      { number: "MTR-3310", reason: "same frame, flange mount" },
-      { number: "MTR-3290", reason: "3 kW, same shaft" },
-    ],
-  },
-  {
-    number: "MTR-3310",
-    name: "Induction motor 4 kW, flange",
-    description: "MTR-3300 with B5 flange mount",
-    keywords: ["motor", "drive"],
-    supplier: "Supplier C",
-    unitPrice: 655,
-    idleSince: null,
-    similar: [
-      { number: "MTR-3300", reason: "same frame, foot mount" },
-      { number: "MTR-3290", reason: "3 kW, same shaft" },
-    ],
-  },
-  {
-    number: "EXT-0600",
-    name: "CO₂ extinguisher 5 kg",
-    description: "Class B fire extinguisher, wall bracket included",
-    keywords: ["extinguisher", "fire"],
-    supplier: "Supplier B",
-    unitPrice: 129,
-    idleSince: null,
-    similar: [
-      { number: "EXT-0610", reason: "6 kg foam, covers class A too" },
-      { number: "EXT-0590", reason: "2 kg CO₂ for small rooms" },
-    ],
-  },
-  {
-    number: "HSE-0450",
-    name: "Hydraulic hose 1/2″, 2 m",
-    description: "2SN hose assembly, JIC fittings both ends",
-    keywords: ["hose", "hydraulic"],
-    supplier: "Supplier C",
-    unitPrice: 74,
-    idleSince: null,
-    similar: [
-      { number: "HSE-0455", reason: "same fittings, 3 m" },
-      { number: "HSE-0440", reason: "3/8″ hose, same length" },
-    ],
-  },
-  {
-    number: "CAB-0920",
-    name: "Tool cabinet, 6 drawers",
-    description: "Steel workshop cabinet, lockable, 120 kg drawer load",
-    keywords: ["cabinet", "drawer"],
-    supplier: "Supplier B",
-    unitPrice: 890,
-    idleSince: "2026-03-11",
-    similar: [
-      { number: "CAB-0925", reason: "same body, 8 drawers" },
-      { number: "CAB-0900", reason: "half height, 4 drawers" },
-    ],
-  },
-  {
-    number: "PLT-1200",
-    name: "Euro pallet 1200 × 800",
-    description: "Wooden pallet, 1500 kg load",
-    keywords: ["pallet"],
     supplier: "Supplier A",
-    unitPrice: 14,
+    lastCounted: "2026-10-14",
     idleSince: null,
-    similar: [
-      { number: "PLT-1210", reason: "plastic, same footprint" },
-      { number: "PLT-1000", reason: "industrial 1200 × 1000" },
+    similar: [],
+    installedIn: [],
+    storedIn: [
+      { assetId: "CAB-01", bin: "A2", qty: 3 },
+      { room: "production", location: "line 1, control panel", qty: 1 },
+    ],
+  },
+  {
+    partNo: "FUS-32A",
+    name: "Fuse 32 A (10 pcs)",
+    description: "gG cartridge fuses 10 × 38 mm, pack of 10",
+    unitPrice: 17.5,
+    supplier: "Supplier A",
+    lastCounted: "2026-10-14",
+    idleSince: "2025-08-04",
+    similar: [],
+    installedIn: [],
+    storedIn: [{ assetId: "CAB-01", bin: "A1", qty: 2 }],
+  },
+  {
+    partNo: "HCL-40-60",
+    name: "Hose clamp 40–60 mm",
+    description: "Worm-drive clamp, stainless W4, 9 mm band",
+    unitPrice: 1.2,
+    supplier: "Supplier C",
+    lastCounted: "2026-10-14",
+    idleSince: null,
+    similar: [],
+    installedIn: ["H-12"],
+    storedIn: [{ assetId: "CAB-01", bin: "B2", qty: 12 }],
+  },
+  {
+    partNo: "BVL-1-BR",
+    name: "Ball valve 1″ brass",
+    description: "Full-bore brass ball valve, 1″ BSP female, lever handle, PN25",
+    unitPrice: 24,
+    supplier: "Supplier B",
+    lastCounted: "2026-10-14",
+    idleSince: null,
+    similar: [],
+    installedIn: ["V-08"],
+    storedIn: [{ room: "storeroom", rack: "R2", shelf: 1, qty: 2 }],
+  },
+  {
+    partNo: "GSK-SET",
+    name: "Gasket set",
+    description: "Flange and casing gaskets, aramid fibre, DN25–DN40",
+    unitPrice: 19,
+    supplier: "Supplier B",
+    lastCounted: "2026-10-14",
+    idleSince: "2025-09-01",
+    similar: [{ partNo: "SEL-25", reason: "dynamic shaft seal for the same pump" }],
+    installedIn: ["P-104", "V-08"],
+    storedIn: [
+      { assetId: "CAB-01", bin: "B1", qty: 2 },
+      { room: "storeroom", rack: "R1", shelf: 4, qty: 3 },
+    ],
+  },
+  {
+    partNo: "GRS-400",
+    name: "Grease cartridge 400 g",
+    description: "Lithium-complex bearing grease, NLGI 2, lever-gun cartridge",
+    unitPrice: 6.8,
+    supplier: "Supplier C",
+    lastCounted: "2026-10-14",
+    idleSince: null,
+    similar: [],
+    installedIn: [],
+    storedIn: [
+      { assetId: "CAB-01", bin: "C1", qty: 6 },
+      { room: "loading", location: "inbound pallet, door 2", qty: 12 },
     ],
   },
 ]
 
-/** Which part a segmented object is, keyed by object concept. Missing = no part linked yet. */
-export const OBJECT_PART_LINKS: Record<string, { partNumber: string; location: string }> = {
-  pump: { partNumber: "PMP-2041", location: "Workbench, front left" },
-  valve: { partNumber: "VLV-1180", location: "Wall manifold, right of the door" },
-  motor: { partNumber: "MTR-3300", location: "Floor, next to the pallet stack" },
-  extinguisher: { partNumber: "EXT-0600", location: "Left wall bracket" },
-  hose: { partNumber: "HSE-0450", location: "Hose reel, back right wall" },
-  cabinet: { partNumber: "CAB-0920", location: "Left wall" },
-}
-
-/** The tiny mocked part picker offers these five. */
-export const LINK_PICKER_PARTS = ["PLT-1200", "CAB-0920", "PMP-2045", "VLV-1182", "MTR-3310"] as const
-
-export const DEFAULT_LINK_LOCATION = "Location not set"
-
-export interface InventoryRow {
-  partNumber: string
-  roomId: RoomId
-  qty: number
-  note: string
-}
-
-/** Stock by room. Sum of qty is the "parts in inventory" count on the plan. */
-export const INVENTORY: InventoryRow[] = [
-  { partNumber: "PMP-2041", roomId: "workshop", qty: 1, note: "workbench" },
-  { partNumber: "PMP-2041", roomId: "storeroom", qty: 3, note: "rack B3, last counted 14 Oct" },
-  { partNumber: "PMP-2041", roomId: "production", qty: 1, note: "line 2, machine 4" },
-  { partNumber: "PMP-2045", roomId: "storeroom", qty: 2, note: "rack B3, last counted 14 Oct" },
-  { partNumber: "VLV-1180", roomId: "workshop", qty: 4, note: "wall manifold" },
-  { partNumber: "VLV-1180", roomId: "storeroom", qty: 6, note: "rack A1, last counted 14 Oct" },
-  { partNumber: "VLV-1182", roomId: "storeroom", qty: 3, note: "rack A1, last counted 14 Oct" },
-  { partNumber: "MTR-3300", roomId: "workshop", qty: 2, note: "floor" },
-  { partNumber: "MTR-3300", roomId: "loading", qty: 1, note: "door 2, inbound 3 Nov" },
-  { partNumber: "MTR-3310", roomId: "production", qty: 1, note: "line 1, machine 2" },
-  { partNumber: "EXT-0600", roomId: "workshop", qty: 1, note: "left wall" },
-  { partNumber: "EXT-0600", roomId: "production", qty: 4, note: "east wall, next to line 1" },
-  { partNumber: "EXT-0600", roomId: "office", qty: 1, note: "by the door" },
-  { partNumber: "HSE-0450", roomId: "workshop", qty: 2, note: "hose reel" },
-  { partNumber: "HSE-0450", roomId: "storeroom", qty: 5, note: "rack C2, last counted 14 Oct" },
-  { partNumber: "CAB-0920", roomId: "workshop", qty: 2, note: "left wall" },
-  { partNumber: "PLT-1200", roomId: "loading", qty: 3, note: "staging lane A" },
-]
+export const PARTS: Part[] = PART_RECORDS.map((p) => ({
+  ...p,
+  stock: p.storedIn.reduce((sum, l) => sum + l.qty, 0),
+}))
 
 export const PLANT_STATS = {
   roomsScanned: ROOMS.filter((r) => r.scanned).length,
   roomsTotal: ROOMS.length,
-  partsInInventory: INVENTORY.reduce((sum, row) => sum + row.qty, 0),
+  partsInInventory: PARTS.reduce((sum, p) => sum + p.stock, 0),
 } as const
 
 /** Minimum characters before the search runs. */

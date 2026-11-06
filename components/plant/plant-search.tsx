@@ -3,6 +3,7 @@
 import * as React from "react"
 import { SearchIcon, XIcon } from "lucide-react"
 import { COPY, PLANT_STATS, SUGGESTED_CONCEPTS } from "@/lib/data"
+import { placeLabel } from "@/lib/parts"
 import { isSearchable, type RoomResults, type SearchOption } from "@/lib/search"
 import { cn } from "@/lib/utils"
 import { useWorld } from "@/components/world/world-provider"
@@ -16,7 +17,7 @@ import { Spinner } from "@/components/ui/spinner"
 const LISTBOX_ID = "plant-results"
 
 function sharedNote(group: Extract<RoomResults, { kind: "inventory" }>) {
-  const notes = new Set(group.hits.map((h) => h.row.note))
+  const notes = new Set(group.hits.map((h) => placeLabel(h.location)))
   return notes.size === 1 ? [...notes][0] : null
 }
 
@@ -222,7 +223,7 @@ export function PlantSearch({
                               />
                             )
                           })
-                        : group.hits.map(({ row, part }) => {
+                        : group.hits.map(({ location, part }) => {
                             const option = options[++flatIndex]
                             const index = flatIndex
                             return (
@@ -243,11 +244,11 @@ export function PlantSearch({
                                 <span className="flex min-w-0 flex-1 flex-col">
                                   <span className="truncate font-medium">{part.name}</span>
                                   <span className="truncate text-label text-muted-foreground">
-                                    <span className="font-mono">{part.number}</span>
-                                    {note ? null : ` · ${row.note}`}
+                                    <span className="font-mono">{part.partNo}</span>
+                                    {note ? null : ` · ${placeLabel(location)}`}
                                   </span>
                                 </span>
-                                <span className="shrink-0 text-label tabular-nums text-muted-foreground">{`${row.qty} in stock`}</span>
+                                <span className="shrink-0 text-label tabular-nums text-muted-foreground">{`${location.qty} in stock`}</span>
                               </li>
                             )
                           })}
