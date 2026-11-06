@@ -145,8 +145,8 @@ export function ObjectRow({ object: o }: { object: WorldObject }) {
             id={metaId}
             title={o.status === "failed" ? o.failReason : undefined}
             className={cn(
-              "w-full truncate text-label tabular-nums text-muted-foreground",
-              o.status === "failed" && "text-status-failed",
+              "w-full text-label tabular-nums text-pretty break-words text-muted-foreground",
+              o.status === "failed" && "truncate text-status-failed",
             )}
           >
             {metaLine(o)}
