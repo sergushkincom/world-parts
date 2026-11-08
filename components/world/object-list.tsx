@@ -72,7 +72,7 @@ export function ObjectList() {
           </EmptyContent>
         </Empty>
       ) : (
-        <ul aria-label="Segmented objects" aria-multiselectable="true" className="flex flex-col">
+        <ul aria-label="Segmented objects" className="flex flex-col">
           {state.objects.map((o) => (
             <ObjectRow key={o.id} object={o} />
           ))}
