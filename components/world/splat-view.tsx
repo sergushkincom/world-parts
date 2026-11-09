@@ -6,6 +6,7 @@ import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react"
 import { LIVE_WORLD } from "@/lib/data"
 import type { SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
+import { ViewControlsHelp } from "@/components/world/view-controls-help"
 
 // WebGL can't run on the server: load the engine only in the browser, and only when Live 3D is on.
 const SplatCanvas = dynamic(() => import("@/components/world/splat-canvas").then((m) => m.SplatCanvas), {
@@ -15,7 +16,7 @@ const SplatCanvas = dynamic(() => import("@/components/world/splat-canvas").then
 function useHint() {
   const [touch, setTouch] = React.useState(false)
   React.useEffect(() => setTouch(window.matchMedia("(pointer: coarse)").matches), [])
-  return touch ? "Drag to look · Pinch to zoom" : "Drag to look · Scroll to zoom · Right-drag to move"
+  return touch ? "Drag to look · Pinch to zoom" : "Drag to look · Scroll to zoom · ? for all controls"
 }
 
 export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; onFallback: () => void }) {
@@ -38,10 +39,19 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="flex flex-col items-start gap-2">{topLeft}</div>
         {status.kind === "ready" && (
-          <Button size="sm" variant="secondary" className="pointer-events-auto" onClick={() => ref.current?.reset()}>
-            <RotateCcwIcon aria-hidden data-icon="inline-start" />
-            Reset view
-          </Button>
+          <div className="flex items-start gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="pointer-events-auto"
+              aria-keyshortcuts="R"
+              onClick={() => ref.current?.reset()}
+            >
+              <RotateCcwIcon aria-hidden data-icon="inline-start" />
+              Reset view
+            </Button>
+            <ViewControlsHelp />
+          </div>
         )}
       </div>
 
