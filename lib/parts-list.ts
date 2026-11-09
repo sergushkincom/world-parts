@@ -28,7 +28,7 @@ export function matchesQuery(part: Part, q: string) {
   })
 }
 
-const STATUS_RANK = { low: 0, installed_only: 1, in_stock: 2, idle: 3 } as const
+const STATUS_RANK = { low: 0, installed_only: 1, in_stock: 2, idle: 3, substitute: 1 } as const
 
 function sortValue(part: Part, key: SortKey): string | number {
   switch (key) {

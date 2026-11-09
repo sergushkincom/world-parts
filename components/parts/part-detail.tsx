@@ -3,10 +3,11 @@
 import * as React from "react"
 import { BoxIcon, ExternalLinkIcon, MapPinIcon } from "lucide-react"
 import { COPY, CURRENCY, type Part } from "@/lib/data"
-import { getEquipment, isInWorld, locationLabel } from "@/lib/parts"
+import { getEquipment, getPart, isInWorld, locationLabel, stockedSubstitute } from "@/lib/parts"
 import { cn } from "@/lib/utils"
 import type { Route } from "@/hooks/use-hash-route"
 import { PartStatusChips } from "@/components/parts/part-status"
+import { MatchBadge } from "@/components/parts/match-badge"
 import { RouteLink, equipmentRoute, locationRoute } from "@/components/parts/route-link"
 import { Button } from "@/components/ui/button"
 
@@ -49,6 +50,7 @@ export function PartDetail({
     ["Idle since", part.idleSince ? fmtDate(part.idleSince) : "—"],
   ]
   const installed = part.installedIn.map(getEquipment).filter((e) => !!e)
+  const substitute = part.storedIn.length ? undefined : stockedSubstitute(part)
 
   return (
     <div className="flex flex-col gap-3">
@@ -87,7 +89,15 @@ export function PartDetail({
             })}
           </ul>
         ) : (
-          <p className="text-row text-muted-foreground">No spares in stock — installed only.</p>
+          <div className="flex flex-col gap-1">
+            <p className="text-row text-muted-foreground">No spares in stock — installed only.</p>
+            {substitute && (
+              <RouteLink to={partRoute(substitute.part.partNo)} className={cn(chip, "w-fit")}>
+                <MatchBadge match={substitute.match} />
+                <span>{`${substitute.part.partNo} in stock · ${substitute.part.stock}`}</span>
+              </RouteLink>
+            )}
+          </div>
         )}
       </Section>
 
@@ -99,6 +109,19 @@ export function PartDetail({
           </React.Fragment>
         ))}
       </dl>
+
+      {part.aliases.length > 0 && (
+        <Section title={`Also known as · ${part.aliases.length + 1} records merged into one`}>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-label">
+            {part.aliases.map((a) => (
+              <React.Fragment key={`${a.source}-${a.value}`}>
+                <dt className="text-muted-foreground">{a.source}</dt>
+                <dd className="min-w-0 font-mono text-pretty">{a.value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        </Section>
+      )}
 
       <Section title="Installed in">
         {installed.length ? (
@@ -117,17 +140,28 @@ export function PartDetail({
         )}
       </Section>
 
-      <Section title="Similar parts">
+      <Section title="Substitutes and similar parts">
         {part.similar.length ? (
           <ul className="flex flex-col gap-1.5">
-            {part.similar.map((s) => (
-              <li key={s.partNo}>
-                <RouteLink to={partRoute(s.partNo)} className={cn(chip, "w-full flex-col items-start gap-0.5")}>
-                  <span className="font-mono">{s.partNo}</span>
-                  <span className="text-muted-foreground text-pretty">{s.reason}</span>
-                </RouteLink>
-              </li>
-            ))}
+            {part.similar.map((s) => {
+              const other = getPart(s.partNo)
+              return (
+                <li key={s.partNo}>
+                  <RouteLink to={partRoute(s.partNo)} className={cn(chip, "w-full flex-col items-start gap-1")}>
+                    <span className="flex w-full flex-wrap items-center justify-between gap-1.5">
+                      <span className="font-mono">{s.partNo}</span>
+                      <MatchBadge match={s.match} />
+                    </span>
+                    <span className="text-muted-foreground text-pretty">{s.reason}</span>
+                    {other && s.match !== "related" && (
+                      <span className="text-muted-foreground">
+                        {other.stock ? `${other.stock} in stock` : "none in stock"}
+                      </span>
+                    )}
+                  </RouteLink>
+                </li>
+              )
+            })}
           </ul>
         ) : (
           <p className="text-row text-muted-foreground">No similar parts on file.</p>

@@ -7,6 +7,7 @@ const TONE: Record<PartStatus["id"], string> = {
   low: "bg-status-low/15 text-status-low",
   installed_only: "bg-muted text-muted-foreground",
   idle: "bg-status-queued/15 text-status-queued",
+  substitute: "bg-status-active/15 text-status-active",
 }
 
 export function PartStatusChips({ part, className }: { part: Part; className?: string }) {

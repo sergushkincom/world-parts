@@ -420,9 +420,28 @@ export interface Equipment {
   bins?: string[]
 }
 
+/**
+ * How two parts relate, in Resourcly's terms: the same item under another number,
+ * a different item that does the same job, or only related (don't swap blindly).
+ */
+export type MatchType = "exact_duplicate" | "functional_substitute" | "related"
+
+export const MATCH_LABEL: Record<MatchType, string> = {
+  exact_duplicate: "exact duplicate",
+  functional_substitute: "functional substitute",
+  related: "related",
+}
+
 export interface SimilarPart {
   partNo: string
+  match: MatchType
   reason: string
+}
+
+/** One name the same part carries in another system. Several of these make one harmonized record. */
+export interface PartAlias {
+  source: "ERP" | "Datasheet" | "Invoice" | "Supplier catalogue"
+  value: string
 }
 
 /** Where spares sit. A bin lives in equipment, so its room comes from that equipment. */
@@ -444,6 +463,8 @@ export interface Part {
   /** ISO date; set when the part hasn't moved in a long time. */
   idleSince: string | null
   similar: SimilarPart[]
+  /** Names the part has in other systems (mock), merged into this record. */
+  aliases: PartAlias[]
   /** Asset IDs of the equipment this part is fitted in. */
   installedIn: string[]
   storedIn: StoredLocation[]
@@ -476,7 +497,12 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     supplier: "Supplier A",
     lastCounted: "2026-10-14",
     idleSince: null,
-    similar: [{ partNo: "BRG-6305", reason: "same bore, heavier series, shielded instead of sealed" }],
+    similar: [{ partNo: "BRG-6305", match: "related", reason: "same bore, but 62 mm outside: won't fit the same housing" }],
+    aliases: [
+      { source: "ERP", value: "BEARING 6205 2RS" },
+      { source: "Datasheet", value: "Deep groove ball bearing 25×52×15, 2RS" },
+      { source: "Invoice", value: "Rillenkugellager 6205-2RS" },
+    ],
     installedIn: ["P-104", "M-21"],
     storedIn: [
       { assetId: "CAB-01", bin: "B3", qty: 2 },
@@ -491,7 +517,8 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     supplier: "Supplier A",
     lastCounted: "2026-10-14",
     idleSince: null,
-    similar: [{ partNo: "BRG-6205-2RS", reason: "same bore, lighter series, sealed instead of shielded" }],
+    similar: [{ partNo: "BRG-6205-2RS", match: "related", reason: "same bore, but 52 mm outside: won't fit the same housing" }],
+    aliases: [],
     installedIn: ["M-21"],
     storedIn: [{ room: "storeroom", rack: "R2", shelf: 3, qty: 1 }],
   },
@@ -503,7 +530,8 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     supplier: "Supplier B",
     lastCounted: "2026-10-14",
     idleSince: null,
-    similar: [{ partNo: "GSK-SET", reason: "static seals for the same pump casing" }],
+    similar: [{ partNo: "GSK-SET", match: "related", reason: "static seals for the same pump casing" }],
+    aliases: [],
     installedIn: ["P-104"],
     storedIn: [{ assetId: "CAB-01", bin: "B1", qty: 1 }],
   },
@@ -515,9 +543,42 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     supplier: "Supplier B",
     lastCounted: "2026-09-30",
     idleSince: null,
-    similar: [],
+    similar: [
+      {
+        partNo: "IMP-160-SS",
+        match: "functional_substitute",
+        reason: "same 160 mm diameter and keyed 25 mm bore; stainless instead of bronze",
+      },
+    ],
+    aliases: [
+      { source: "ERP", value: "IMPELLER D160 BRZ" },
+      { source: "Datasheet", value: "Laufrad Ø160, Bronze, Nabe 25 mm" },
+    ],
     installedIn: ["P-104"],
     storedIn: [],
+  },
+  {
+    partNo: "IMP-160-SS",
+    name: "Impeller Ø160, stainless",
+    description: "Closed stainless-steel impeller, 160 mm, keyed 25 mm shaft",
+    unitPrice: 268,
+    supplier: "Supplier D",
+    lastCounted: "2026-10-14",
+    // Bought for another pump line and never used: the reuse case.
+    idleSince: "2025-10-01",
+    similar: [
+      {
+        partNo: "IMP-160",
+        match: "functional_substitute",
+        reason: "same 160 mm diameter and keyed 25 mm bore; bronze instead of stainless",
+      },
+    ],
+    aliases: [
+      { source: "ERP", value: "LAUFRAD 160 VA" },
+      { source: "Supplier catalogue", value: "Impeller closed 160/25 1.4408" },
+    ],
+    installedIn: [],
+    storedIn: [{ assetId: "CAB-01", bin: "C1", qty: 1 }],
   },
   {
     partNo: "VBL-A42",
@@ -528,6 +589,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     lastCounted: "2026-10-14",
     idleSince: null,
     similar: [],
+    aliases: [],
     installedIn: ["M-21"],
     storedIn: [
       { assetId: "CAB-01", bin: "C1", qty: 4 },
@@ -543,6 +605,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     lastCounted: "2026-10-02",
     idleSince: null,
     similar: [],
+    aliases: [],
     installedIn: [],
     storedIn: [
       { room: "storeroom", rack: "R3", shelf: 1, qty: 3 },
@@ -558,6 +621,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     lastCounted: "2026-10-14",
     idleSince: null,
     similar: [],
+    aliases: [],
     installedIn: [],
     storedIn: [
       { assetId: "CAB-01", bin: "A2", qty: 3 },
@@ -573,6 +637,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     lastCounted: "2026-10-14",
     idleSince: "2025-08-04",
     similar: [],
+    aliases: [],
     installedIn: [],
     storedIn: [{ assetId: "CAB-01", bin: "A1", qty: 2 }],
   },
@@ -585,6 +650,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     lastCounted: "2026-10-14",
     idleSince: null,
     similar: [],
+    aliases: [],
     installedIn: ["H-12"],
     storedIn: [{ assetId: "CAB-01", bin: "B2", qty: 12 }],
   },
@@ -597,6 +663,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     lastCounted: "2026-10-14",
     idleSince: null,
     similar: [],
+    aliases: [],
     installedIn: ["V-08"],
     storedIn: [{ room: "storeroom", rack: "R2", shelf: 1, qty: 2 }],
   },
@@ -608,7 +675,8 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     supplier: "Supplier B",
     lastCounted: "2026-10-14",
     idleSince: "2025-09-01",
-    similar: [{ partNo: "SEL-25", reason: "dynamic shaft seal for the same pump" }],
+    similar: [{ partNo: "SEL-25", match: "related", reason: "dynamic shaft seal for the same pump" }],
+    aliases: [],
     installedIn: ["P-104", "V-08"],
     storedIn: [
       { assetId: "CAB-01", bin: "B1", qty: 2 },
@@ -624,6 +692,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     lastCounted: "2026-10-14",
     idleSince: null,
     similar: [],
+    aliases: [],
     installedIn: [],
     storedIn: [
       { assetId: "CAB-01", bin: "C1", qty: 6 },

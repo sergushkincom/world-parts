@@ -8,6 +8,7 @@ import {
   type Part,
   type Room,
   type RoomId,
+  type SimilarPart,
   type StoredLocation,
   type WorldObject,
 } from "@/lib/data"
@@ -95,10 +96,14 @@ export type PartStatus =
   | { id: "low"; label: string }
   | { id: "installed_only"; label: string }
   | { id: "idle"; label: string; months: number }
+  | { id: "substitute"; label: string }
 
 export function partStatuses(part: Part): PartStatus[] {
   const out: PartStatus[] = []
-  if (!part.storedIn.length) out.push({ id: "installed_only", label: "installed only" })
+  if (!part.storedIn.length) {
+    out.push({ id: "installed_only", label: "installed only" })
+    if (stockedSubstitute(part)) out.push({ id: "substitute", label: "substitute in stock" })
+  }
   else if (part.stock <= INVENTORY.lowStockMax) out.push({ id: "low", label: "low" })
   else out.push({ id: "in_stock", label: "in stock" })
   const months = idleMonths(part)
@@ -130,4 +135,22 @@ export function validateParts(): string[] {
     }
   }
   return issues
+}
+
+/** First bin in a scanned room that holds this part, so the camera can go there. */
+export function spareInWorld(part: Part): BinLocation | undefined {
+  return part.storedIn.find((l): l is BinLocation => isBin(l) && isInWorld(l))
+}
+
+/**
+ * When there's no spare of the part itself: a stocked part that can do the same job.
+ * Only exact duplicates and functional substitutes count; "related" parts are never offered as a swap.
+ */
+export function stockedSubstitute(part: Part): { part: Part; reason: string; match: SimilarPart["match"] } | undefined {
+  for (const s of part.similar) {
+    if (s.match === "related") continue
+    const sub = getPart(s.partNo)
+    if (sub && sub.storedIn.length) return { part: sub, reason: s.reason, match: s.match }
+  }
+  return undefined
 }
