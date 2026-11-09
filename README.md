@@ -23,6 +23,7 @@ So the prototype starts from the plant, not from the viewer: search for a part, 
 - **Plant overview** — a floor plan with five rooms (one `scanned`, four `not scanned`), a search field that takes a name or a part number, and results grouped by room: `in world` (exact object, click to enter) or `inventory only` (location as text, "scan this room to locate parts in 3D"). Pinch-to-zoom and drag on mobile.
 - **Room** — the workshop scene with segmented objects as overlays and tracking labels; entering from a search result frames the object and opens its card. A minimap in the corner shows the current room and returns to the plan. 300 ms zoom-and-fade between levels, static swap with reduced motion.
 - **Segmentation panel** — concept input (and what it can't do), object list with explicit states (`lifted · low confidence · failed` with a reason and Retry), multi-select, Gaussian view as a three-way switch, server status pill with latency.
+- **Live 3D (local only)** — a `Still · Live 3D` switch in the room. Live loads the SpAItial world as a SOG splat in PlayCanvas: drag to look, scroll or pinch to zoom, right-drag to move. "Find" and "Find spare" fly the camera to the object and turn it a little so the object clears the card. Controls are a one-line hint that fades after the first drag, plus a non-modal panel on `?`. The still frame stays the default and the fallback (loading, error, no WebGL). See *Running the live world* below.
 - **Object card** — *Object* (splats, views, confidence) and *Parts in this unit* on equipment, with a "Find spare" action that frames the cabinet; *Bins* on the cabinet, a 2×3 grid with the searched bin highlighted.
 - Desktop and 375 px, keyboard for everything that isn't the camera (`/` search, `G` segment, `Esc` back, `↑/↓`, `1/2/3`), reduced motion respected, state in the URL so a link opens the same view.
 
@@ -45,7 +46,8 @@ Honest split: what here mirrors the real pipeline, what is mocked, and what the 
 
 | world-parts | segment-3gs | Here |
 |---|---|---|
-| Room scene | PlayCanvas viewer on a `.ply` splat exported from SpAItial | **Still frame** of a SpAItial world (Echo-2, image to world), not a live splat |
+| Room scene | PlayCanvas viewer on a `.ply` splat exported from SpAItial | **Still frame** of a SpAItial world (Echo-2, image to world) by default; **Live 3D** renders the same world's SOG export with PlayCanvas, locally |
+| Camera to object | — (orbit only) | Hand-placed camera pose per object: target from the splat centers inside each object's still-frame polygon, projected with the still's camera |
 | Concept input, "needs a concept" | `POST /segment` with `prompts.text`, one concept per call | Mocked: no server call, results come from `lib/data.ts` |
 | Server pill `mock · mobile_sam · sam3` | `GET /health` and the model tiers | Mocked, including "simulate unreachable" |
 | Object states `lifted · low confidence · failed` | `liftMask` plus per-Gaussian voting in `SegmentationRegistry` | Mocked; `VOTE_THRESHOLD = 4` mirrors the idea that one view is not enough |
@@ -66,12 +68,24 @@ Honest split: what here mirrors the real pipeline, what is mocked, and what the 
 
 ## Deliberately not built
 
-Real segmentation · the live 3D viewer (the room is a still frame of the world) · batch sweep · parts search beyond the 12 demo records · procurement, suppliers, ordering · auth · persistence beyond this browser.
+Real segmentation · a hosted live world (see below) · 3D masks: Live 3D shows the world, the object overlays stay on the still frame · batch sweep · parts search beyond the 12 demo records · procurement, suppliers, ordering · auth · persistence beyond this browser.
 
 ## Next
 
 - The batch sweep as an honest wait: cost before start, progress, cancel that keeps results.
-- Live world: SOG export from SpAItial rendered with PlayCanvas, 3D anchors, camera flight to the found part.
+- Live world: object labels anchored in 3D, and a hosted world once the licence allows it.
+
+## Running the live world
+
+The world file isn't in this repo and isn't hosted. It was generated on SpAItial's free plan, whose terms allow personal, non-commercial use, so it stays on my machine. The code reads the file from `NEXT_PUBLIC_SPLAT_URL`, or from `public/splats/workshop.sog` (gitignored).
+
+```bash
+pnpm install
+cp ~/Downloads/<your-world>.sog public/splats/workshop.sog
+pnpm dev
+```
+
+Open `/?room=workshop` and switch to **Live 3D**. Without the file, Live 3D says it couldn't load and offers the still frame.
 
 ## How it was built
 
@@ -79,7 +93,7 @@ v0 for the first version, then one review round per commit. `AGENT_LOG.md` lists
 
 ## Stack
 
-Next.js · TypeScript · Tailwind · shadcn/ui. No backend. MIT.
+Next.js · TypeScript · Tailwind · shadcn/ui · PlayCanvas (live world, loaded on demand). No backend. Code: MIT. The SpAItial world and its still frame are not covered by the MIT licence.
 
 ## Credits
 

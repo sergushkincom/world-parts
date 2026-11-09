@@ -126,6 +126,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     app.assets.add(asset)
     app.assets.load(asset)
     app.start()
+    if (process.env.NODE_ENV === "development") (window as unknown as { __pcApp?: Application }).__pcApp = app
 
     const first = () => {
       interactRef.current?.()
@@ -135,15 +136,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     canvas.addEventListener("pointerdown", first)
     canvas.addEventListener("wheel", first, { passive: true })
 
-    // PlayCanvas listens for keys on the whole window, so W/A/S/D in the search field would fly the camera.
-    // The camera only listens while the pointer is over the view (and nobody is typing) or the view has focus.
-    let hovered = false
+    // Orbit mode ignores W/A/S/D (they only drive fly mode, which is off), so typing elsewhere can't move the camera.
     const typing = () => (document.activeElement as HTMLElement | null)?.closest?.(EDITABLE) != null
-    const gate = () => {
-      controls.enabled = document.activeElement === canvas || (hovered && !typing())
-    }
-    const enter = () => ((hovered = true), gate())
-    const leave = () => ((hovered = false), gate())
     const onKey = (e: KeyboardEvent) => {
       if (typing() || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
       if (e.key === "r" || e.key === "R") {
@@ -151,20 +145,11 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
         controls.reset(v(homeRef.current.target), v(homeRef.current.position))
       }
     }
-    canvas.addEventListener("pointerenter", enter)
-    canvas.addEventListener("pointerleave", leave)
-    document.addEventListener("focusin", gate)
-    document.addEventListener("focusout", gate)
     window.addEventListener("keydown", onKey)
-    gate()
 
     return () => {
       canvas.removeEventListener("pointerdown", first)
       canvas.removeEventListener("wheel", first)
-      canvas.removeEventListener("pointerenter", enter)
-      canvas.removeEventListener("pointerleave", leave)
-      document.removeEventListener("focusin", gate)
-      document.removeEventListener("focusout", gate)
       window.removeEventListener("keydown", onKey)
       observer.disconnect()
       controlsRef.current = null

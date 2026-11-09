@@ -3,15 +3,33 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react"
-import { LIVE_WORLD } from "@/lib/data"
+import { LIVE_WORLD, type CameraPose } from "@/lib/data"
 import type { SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
+import { useWorld } from "@/components/world/world-provider"
 import { ViewControlsHelp } from "@/components/world/view-controls-help"
 
 // WebGL can't run on the server: load the engine only in the browser, and only when Live 3D is on.
 const SplatCanvas = dynamic(() => import("@/components/world/splat-canvas").then((m) => m.SplatCanvas), {
   ssr: false,
 })
+
+/**
+ * The card sits top-right, so turn the camera a little to the right where it stands:
+ * the object lands left of centre, in the free part of the view. Turning (not sliding)
+ * keeps the camera inside the room even for far objects.
+ */
+function besideCard(pose: CameraPose): CameraPose {
+  const [px, py, pz] = pose.position
+  const [tx, ty, tz] = pose.target
+  const fx = tx - px
+  const fz = tz - pz
+  // Right of forward on the floor plane: (−fz, fx).
+  const a = LIVE_WORLD.cardTurn
+  const nx = fx * Math.cos(a) - fz * Math.sin(a)
+  const nz = fz * Math.cos(a) + fx * Math.sin(a)
+  return { position: pose.position, target: [px + nx, py + (ty - py), pz + nz] }
+}
 
 function useHint() {
   const [touch, setTouch] = React.useState(false)
@@ -24,6 +42,21 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
   const [touched, setTouched] = React.useState(false)
   const hint = useHint()
+  const { state } = useWorld()
+
+  // Find → fly: the framed object's hand-measured pose, or home when nothing is framed.
+  React.useEffect(() => {
+    if (status.kind !== "ready") return
+    const pose = state.framedId ? LIVE_WORLD.poses[state.framedId] : undefined
+    if (pose) ref.current?.flyTo(state.cardId ? besideCard(pose) : pose)
+    else if (!state.framedId) ref.current?.reset()
+  }, [state.framedId, state.cardId, status.kind])
+
+  // Dev only: measure poses from the console with __splat.getPose().
+  React.useEffect(() => {
+    if (process.env.NODE_ENV !== "development" || status.kind !== "ready") return
+    ;(window as unknown as { __splat?: SplatCanvasHandle | null }).__splat = ref.current
+  }, [status.kind])
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-scene">
