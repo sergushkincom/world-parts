@@ -6,8 +6,8 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
 export const metadata: Metadata = {
-  title: "world-parts · SAM3 lift to 3D",
-  description: "Design pass on the segment-3gs control panel: segment a concept, lift it to splats, reuse it forever.",
+  title: "world-parts · find a part in a segmented world",
+  description: "A design pass on segment-3gs: find a spare part across a plant, in world or inventory only. Segmentation is mocked; the room is a still frame of a SpAItial world.",
 }
 
 export const viewport: Viewport = {
