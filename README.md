@@ -37,6 +37,33 @@ Vocabulary is kept from the original project — concept, segment view, lift, vi
 5. **Equipment and parts are two levels.** The world segments equipment (pump P-104, cabinet CAB-01); parts are records that are *installed in* equipment or *stored in* a bin, rack or spot. Search answers both.
 6. **All values from `lib/data.ts`.** Rooms, equipment, parts, inventory rows, timings. No real brands, no real part numbers.
 
+## How this maps to segment-3gs
+
+Honest split: what here mirrors the real pipeline, what is mocked, and what the parts layer would need from it.
+
+**What is real here and what is mocked**
+
+| world-parts | segment-3gs | Here |
+|---|---|---|
+| Room scene | PlayCanvas viewer on a `.ply` splat exported from SpAItial | **Still frame** of a SpAItial world (Echo-2, image to world), not a live splat |
+| Concept input, "needs a concept" | `POST /segment` with `prompts.text`, one concept per call | Mocked: no server call, results come from `lib/data.ts` |
+| Server pill `mock · mobile_sam · sam3` | `GET /health` and the model tiers | Mocked, including "simulate unreachable" |
+| Object states `lifted · low confidence · failed` | `liftMask` plus per-Gaussian voting in `SegmentationRegistry` | Mocked; `VOTE_THRESHOLD = 4` mirrors the idea that one view is not enough |
+| `splats`, `views`, `votes` on the object card | `splatIndices`, `sourceViews`, vote counts | Hand-written numbers |
+| Gaussian view `Highlight · Recolor · Isolate` | `SelectionViz` and `GsplatRecolor` | 2D overlay on the still frame |
+| Object outline and framing | Point-cloud highlight and camera focus | Hand-placed polygons in `lib/data.ts` |
+| **Parts layer**: equipment, parts, bins, `in world` vs `inventory only` | Not in segment-3gs | **New here.** This is the design question of the repo |
+
+**The join.** A segmented object can carry an `assetId`. That id links it to an equipment record, and parts are records *installed in* equipment or *stored in* a bin. The world layer never depends on the parts layer.
+
+**What the parts layer would need from the pipeline**
+
+1. **Stable object ids.** Today objects are merged by label and overlap, and they live in one browser's `localStorage` (`segmentation.objects.v2`). Parts data needs an id that survives re-segmentation, a vote merge and a reload on another machine.
+2. **A place for metadata on the object.** Either a free `metadata` field on the stored object, or an external key such as `assetId` that the registry carries through merges.
+3. **Server-side persistence per world.** The same world should open with the same objects for everyone on the team, not only in one browser.
+4. **A focus API.** Given an object id: its bounds and a camera pose to frame it. That is what "find the part" needs in 3D: walk into the room and land on the pump.
+5. **Confidence as data.** `votes` and the score next to the object, so the UI can say "low confidence" instead of hiding it.
+
 ## Deliberately not built
 
 Real segmentation · the live 3D viewer (the room is a still frame of the world) · batch sweep · parts search beyond the 12 demo records · procurement, suppliers, ordering · auth · persistence beyond this browser.
