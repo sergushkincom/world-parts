@@ -48,6 +48,21 @@ export const SCENE = {
   alt: "Still frame of a factory workshop interior",
 } as const
 
+/**
+ * Live 3D: the same SpAItial world as the still frame, exported as SOG.
+ * Hosted outside git; NEXT_PUBLIC_SPLAT_URL points at it. Camera poses are measured by hand in the viewer.
+ */
+export const LIVE_WORLD = {
+  src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
+  sizeLabel: "24 MB",
+  /** SpAItial exports are already y-up; kept as a knob for other sources. */
+  rotation: [0, 0, 0] as [number, number, number],
+  home: { position: [0, 0, 0], target: [0, 0, -1] } as {
+    position: [number, number, number]
+    target: [number, number, number]
+  },
+} as const
+
 export const TIMING = {
   /** UI mock: how long one view takes to segment. */
   segmentMsPerView: 2500,
