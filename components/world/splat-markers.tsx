@@ -2,33 +2,35 @@
 
 import * as React from "react"
 import { LIVE_WORLD, OBJECT_PALETTE, type WorldObject } from "@/lib/data"
+import { formatCount } from "@/lib/geometry"
+import type { SplatStats } from "@/lib/splat-mask"
 import { cn } from "@/lib/utils"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import type { Project } from "@/components/world/splat-canvas"
 
 export type MarkersHandle = { place: (project: Project) => void }
 
-/**
- * The marker sits on the object's own splats: the pose target, which is the centre of the splats inside the
- * object's still-frame mask. It stays on the object from any angle, unlike a 2D label lifted off the still.
- */
-function anchorOf(o: WorldObject): [number, number, number] | null {
-  return LIVE_WORLD.poses[o.id]?.target ?? null
+/** The centre of the object's own splats (lifted from its still mask), else its hand-measured pose target. */
+function anchorOf(o: WorldObject, stats: Map<string, SplatStats>): [number, number, number] | null {
+  return stats.get(o.id)?.anchor ?? LIVE_WORLD.poses[o.id]?.target ?? null
 }
 
 /**
- * Hotspots on the live world. A splat can't be segmented per object yet (the scene is one static cloud),
- * so each object gets a marker pinned to a 3D anchor (see `anchorOf`).
- * The canvas moves them every frame through `place`; React only re-renders on hover, selection or framing.
+ * The still's object labels, pinned to the live world. Same pill as on the still frame (dot, name, splat count),
+ * but anchored in 3D, so it stays on the object from any angle. The canvas moves them every frame through
+ * `place`; React only re-renders on hover, selection or framing.
  */
-export const SplatMarkers = React.forwardRef<MarkersHandle>(function SplatMarkers(_, ref) {
+export const SplatMarkers = React.forwardRef<MarkersHandle, { stats: Map<string, SplatStats> }>(function SplatMarkers(
+  { stats },
+  ref,
+) {
   const { state, select, hover, frame, openCard } = useWorld()
   const nodes = React.useRef(new Map<string, HTMLButtonElement>())
 
-  const objects = state.objects.filter((o) => DRAWABLE.includes(o.status) && anchorOf(o))
-  const anchors = React.useRef(new Map<string, [number, number, number]>())
-  anchors.current = new Map(objects.map((o) => [o.id, anchorOf(o)!]))
+  const objects = state.objects.filter((o) => DRAWABLE.includes(o.status) && anchorOf(o, stats))
   const selected = new Set(state.selection)
+  const anchors = React.useRef(new Map<string, [number, number, number]>())
+  anchors.current = new Map(objects.map((o) => [o.id, anchorOf(o, stats)!]))
 
   React.useImperativeHandle(ref, () => ({
     place: (project) => {
@@ -49,7 +51,9 @@ export const SplatMarkers = React.forwardRef<MarkersHandle>(function SplatMarker
         const isSel = selected.has(o.id)
         const isHover = state.hoveredId === o.id
         const isFramed = state.framedId === o.id
-        const expanded = isSel || isHover || isFramed
+        const active = isSel || isHover || isFramed
+        // As on the still: under the panel breakpoint only the active object keeps its text.
+        const compact = !active
         return (
           <button
             key={o.id}
@@ -70,24 +74,23 @@ export const SplatMarkers = React.forwardRef<MarkersHandle>(function SplatMarker
               openCard(o.id, "part")
             }}
             className={cn(
-              "pointer-events-auto absolute top-0 left-0 flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-black/75 py-1 pr-2 pl-1.5 text-label font-medium text-scene-ink shadow-sm backdrop-blur-sm",
-              "invisible will-change-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-              !expanded && "pr-1.5",
-              (isSel || isFramed) && "z-10",
+              "pointer-events-auto invisible absolute top-0 left-0 flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-black/75 px-2 py-0.5 text-label font-medium text-scene-ink shadow-sm backdrop-blur-sm will-change-transform",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+              compact && "max-panel:p-1.5",
+              active && "z-10",
             )}
-            style={{ borderColor: expanded ? color : "transparent" }}
+            style={{ borderColor: active ? color : "transparent" }}
           >
-            <span className="relative grid size-2.5 place-items-center">
+            <span className="relative grid size-2 place-items-center">
               {isFramed && (
-                <span
-                  aria-hidden
-                  className="pin-pulse absolute inset-0 rounded-full"
-                  style={{ backgroundColor: color }}
-                />
+                <span aria-hidden className="pin-pulse absolute inset-0 rounded-full" style={{ backgroundColor: color }} />
               )}
-              <span aria-hidden className="relative size-2.5 rounded-full" style={{ backgroundColor: color }} />
+              <span aria-hidden className="relative size-2 rounded-full" style={{ backgroundColor: color }} />
             </span>
-            <span className={cn(!expanded && "sr-only")}>{o.name}</span>
+            <span className={cn(compact && "max-panel:hidden")}>{o.name}</span>
+            <span className={cn("tabular-nums text-scene-ink/60", compact && "max-panel:hidden")}>
+              {formatCount(o.splats ?? 0)}
+            </span>
           </button>
         )
       })}

@@ -3,11 +3,11 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react"
-import { LIVE_WORLD, OBJECT_PALETTE, SCENE, type CameraPose, type WorldObject } from "@/lib/data"
-import { bounds } from "@/lib/geometry"
+import { LIVE_WORLD, OBJECT_PALETTE, type CameraPose, type WorldObject } from "@/lib/data"
+import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
 import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
-import { useWorld } from "@/components/world/world-provider"
+import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { ViewControlsHelp } from "@/components/world/view-controls-help"
 import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
 
@@ -33,19 +33,11 @@ function besideCard(pose: CameraPose): CameraPose {
   return { position: pose.position, target: [px + nx, py + (ty - py), pz + nz] }
 }
 
-/** The still's focal length in pixels (60° vertical FOV), to turn a mask's size into metres at the object's depth. */
-const STILL_FOCAL_PX = SCENE.height / 2 / Math.tan(Math.PI / 6)
-
-/** Light up the object's splats: a sphere around its anchor, as big as its still-frame mask at that depth. */
-function focusFor(o: WorldObject): Focus | null {
-  const pose = LIVE_WORLD.poses[o.id]
-  if (!pose || !o.polygon) return null
-  const box = bounds(o.polygon)
-  const depth = -pose.target[2]
-  const radius = Math.max(0.25, (Math.max(box.width, box.height) / 2) * (depth / STILL_FOCAL_PX))
+function focusFor(o: WorldObject, stats: SplatStats | undefined): Focus | null {
+  if (!stats) return null
   const hex = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
   const color = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number]
-  return { center: pose.target, radius, color }
+  return { maskId: stats.maskId, near: stats.near, far: stats.far, color }
 }
 
 function useHint() {
@@ -64,6 +56,29 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
   const hint = useHint()
   const { state } = useWorld()
 
+  // Lift the still's masks onto the world once it's loaded: which splats belong to which object.
+  const maskObjects: MaskObject[] = React.useMemo(
+    () =>
+      state.objects
+        .filter((o) => DRAWABLE.includes(o.status) && o.polygon)
+        .map((o) => {
+          const target = LIVE_WORLD.poses[o.id]?.target
+          return { id: o.id, polygon: o.polygon!, depth: target ? -target[2] : undefined }
+        }),
+    [state.objects],
+  )
+  const maskKey = maskObjects.map((o) => o.id).join(",")
+  const [stats, setStats] = React.useState<Map<string, SplatStats>>(new Map())
+  React.useEffect(() => {
+    if (status.kind !== "ready") return
+    const centers = ref.current?.centers()
+    if (!centers || !maskObjects.length) return
+    const mask = drawIdMask(maskObjects)
+    ref.current?.setObjectMask(mask)
+    setStats(measureObjects(centers, mask, maskObjects))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure only when the set of objects changes
+  }, [status.kind, maskKey])
+
   // Find → fly: the framed object's hand-measured pose, or home when nothing is framed.
   React.useEffect(() => {
     if (status.kind !== "ready") return
@@ -78,8 +93,8 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
   const focusObject = state.objects.find((o) => o.id === focusId)
   React.useEffect(() => {
     if (status.kind !== "ready") return
-    ref.current?.focus(focusObject ? focusFor(focusObject) : null)
-  }, [focusObject, status.kind])
+    ref.current?.focus(focusObject ? focusFor(focusObject, stats.get(focusObject.id)) : null)
+  }, [focusObject, stats, status.kind])
 
   // Dev only: measure poses from the console with __splat.getPose().
   React.useEffect(() => {
@@ -99,7 +114,7 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
         onFrame={(project) => markersRef.current?.place(project)}
       />
 
-      {status.kind === "ready" && <SplatMarkers ref={markersRef} />}
+      {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} />}
 
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="flex flex-col items-start gap-2">{topLeft}</div>
