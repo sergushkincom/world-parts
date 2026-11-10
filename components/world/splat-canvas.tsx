@@ -14,6 +14,7 @@ import {
   RESOLUTION_AUTO,
   Vec2,
   Vec3,
+  WORKBUFFER_UPDATE_ONCE,
 } from "playcanvas"
 import { CameraControls } from "playcanvas/scripts/esm/camera-controls.mjs"
 
@@ -24,7 +25,39 @@ export type SplatStatus =
   | { kind: "ready" }
   | { kind: "error"; message: string }
 
+/** Where a 3D point lands on the canvas, in CSS pixels. `visible` is false behind the camera or off screen. */
+export type ScreenPoint = { x: number; y: number; visible: boolean }
+export type Project = (p: [number, number, number]) => ScreenPoint
+
+/** A sphere of splats to light up in the object's colour; everything else dims a little. */
+export type Focus = { center: [number, number, number]; radius: number; color: [number, number, number] }
+
+/**
+ * Per-splat tint, written into PlayCanvas's splat work buffer (`setWorkBufferModifier`).
+ * It re-runs only when the focus changes, not every frame.
+ * The world is one static cloud, so "the object" is the splats within a sphere around its anchor.
+ */
+const FOCUS_GLSL = /* glsl */ `
+uniform vec3 uFocusCenter;
+uniform float uFocusRadius;
+uniform vec3 uFocusColor;
+uniform float uFocusOn;
+
+void modifySplatCenter(inout vec3 center) {
+}
+void modifySplatRotationScale(vec3 originalCenter, vec3 modifiedCenter, inout vec4 rotation, inout vec3 scale) {
+}
+void modifySplatColor(vec3 center, inout vec4 color) {
+  if (uFocusOn < 0.5) return;
+  float d = distance(center, uFocusCenter) / uFocusRadius;
+  float inside = 1.0 - smoothstep(0.75, 1.0, d);
+  vec3 lit = mix(color.rgb, uFocusColor, 0.45) * 1.15;
+  color.rgb = mix(color.rgb * 0.45, lit, inside);
+}
+`
+
 export type SplatCanvasHandle = {
+  focus: (focus: Focus | null) => void
   flyTo: (pose: CameraPose) => void
   reset: () => void
   getPose: () => CameraPose | null
@@ -37,25 +70,41 @@ type Props = {
   rotation: [number, number, number]
   onStatus: (s: SplatStatus) => void
   onFirstInteraction?: () => void
+  /** Called every frame after the camera moved, with a projector for 3D points. Write to the DOM here, not to state. */
+  onFrame?: (project: Project) => void
 }
 
 const v = (p: [number, number, number]) => new Vec3(p[0], p[1], p[2])
 const EDITABLE = "input, textarea, select, [contenteditable='true']"
 
 export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function SplatCanvas(
-  { src, home, rotation, onStatus, onFirstInteraction },
+  { src, home, rotation, onStatus, onFirstInteraction, onFrame },
   ref,
 ) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const controlsRef = React.useRef<CameraControls | null>(null)
   const cameraRef = React.useRef<Entity | null>(null)
+  const splatRef = React.useRef<Entity | null>(null)
   const statusRef = React.useRef(onStatus)
   statusRef.current = onStatus
   const interactRef = React.useRef(onFirstInteraction)
   interactRef.current = onFirstInteraction
   const homeRef = React.useRef(home)
+  const frameRef = React.useRef(onFrame)
+  frameRef.current = onFrame
 
   React.useImperativeHandle(ref, () => ({
+    focus: (focus) => {
+      const gsplat = splatRef.current?.gsplat
+      if (!gsplat) return
+      gsplat.setParameter("uFocusOn", focus ? 1 : 0)
+      if (focus) {
+        gsplat.setParameter("uFocusCenter", focus.center)
+        gsplat.setParameter("uFocusRadius", focus.radius)
+        gsplat.setParameter("uFocusColor", focus.color)
+      }
+      gsplat.workBufferUpdate = WORKBUFFER_UPDATE_ONCE
+    },
     flyTo: (pose) => controlsRef.current?.reset(v(pose.target), v(pose.position)),
     reset: () => controlsRef.current?.reset(v(homeRef.current.target), v(homeRef.current.position)),
     getPose: () => {
@@ -117,6 +166,9 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       splat.addComponent("gsplat", { asset })
       splat.setLocalEulerAngles(rotation[0], rotation[1], rotation[2])
       app.root.addChild(splat)
+      splat.gsplat!.setWorkBufferModifier({ glsl: FOCUS_GLSL })
+      splat.gsplat!.setParameter("uFocusOn", 0)
+      splatRef.current = splat
       statusRef.current({ kind: "ready" })
     })
     asset.on("error", (err: unknown) =>
@@ -126,6 +178,21 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     app.assets.add(asset)
     app.assets.load(asset)
     app.start()
+
+    // Markers ride on the splat: project their anchors once per frame, after the controls moved the camera.
+    const world = new Vec3()
+    const screen = new Vec3()
+    const toPoint = new Vec3()
+    const project: Project = (p) => {
+      world.set(p[0], p[1], p[2])
+      toPoint.sub2(world, camera.getPosition())
+      if (toPoint.dot(camera.forward) <= 0.05) return { x: 0, y: 0, visible: false }
+      camera.camera!.worldToScreen(world, screen)
+      const visible = screen.x >= -40 && screen.y >= -40 && screen.x <= canvas.clientWidth + 40 && screen.y <= canvas.clientHeight + 40
+      return { x: screen.x, y: screen.y, visible }
+    }
+    const onUpdate = () => frameRef.current?.(project)
+    app.on("postrender", onUpdate)
     if (process.env.NODE_ENV === "development") (window as unknown as { __pcApp?: Application }).__pcApp = app
 
     const first = () => {
@@ -151,8 +218,10 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       canvas.removeEventListener("pointerdown", first)
       canvas.removeEventListener("wheel", first)
       window.removeEventListener("keydown", onKey)
+      app.off("postrender", onUpdate)
       observer.disconnect()
       controlsRef.current = null
+      splatRef.current = null
       cameraRef.current = null
       app.destroy()
     }

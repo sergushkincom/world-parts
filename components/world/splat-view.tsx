@@ -3,11 +3,13 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react"
-import { LIVE_WORLD, type CameraPose } from "@/lib/data"
-import type { SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
+import { LIVE_WORLD, OBJECT_PALETTE, SCENE, type CameraPose, type WorldObject } from "@/lib/data"
+import { bounds } from "@/lib/geometry"
+import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
 import { useWorld } from "@/components/world/world-provider"
 import { ViewControlsHelp } from "@/components/world/view-controls-help"
+import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
 
 // WebGL can't run on the server: load the engine only in the browser, and only when Live 3D is on.
 const SplatCanvas = dynamic(() => import("@/components/world/splat-canvas").then((m) => m.SplatCanvas), {
@@ -31,14 +33,32 @@ function besideCard(pose: CameraPose): CameraPose {
   return { position: pose.position, target: [px + nx, py + (ty - py), pz + nz] }
 }
 
+/** The still's focal length in pixels (60° vertical FOV), to turn a mask's size into metres at the object's depth. */
+const STILL_FOCAL_PX = SCENE.height / 2 / Math.tan(Math.PI / 6)
+
+/** Light up the object's splats: a sphere around its anchor, as big as its still-frame mask at that depth. */
+function focusFor(o: WorldObject): Focus | null {
+  const pose = LIVE_WORLD.poses[o.id]
+  if (!pose || !o.polygon) return null
+  const box = bounds(o.polygon)
+  const depth = -pose.target[2]
+  const radius = Math.max(0.25, (Math.max(box.width, box.height) / 2) * (depth / STILL_FOCAL_PX))
+  const hex = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
+  const color = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number]
+  return { center: pose.target, radius, color }
+}
+
 function useHint() {
   const [touch, setTouch] = React.useState(false)
   React.useEffect(() => setTouch(window.matchMedia("(pointer: coarse)").matches), [])
-  return touch ? "Drag to look · Pinch to zoom" : "Drag to look · Scroll to zoom · ? for all controls"
+  return touch
+    ? "Tap a marker to explore · Drag to look"
+    : "Click a marker to explore · Drag to look · ? for all controls"
 }
 
 export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; onFallback: () => void }) {
   const ref = React.useRef<SplatCanvasHandle>(null)
+  const markersRef = React.useRef<MarkersHandle>(null)
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
   const [touched, setTouched] = React.useState(false)
   const hint = useHint()
@@ -51,6 +71,15 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
     if (pose) ref.current?.flyTo(state.cardId ? besideCard(pose) : pose)
     else if (!state.framedId) ref.current?.reset()
   }, [state.framedId, state.cardId, status.kind])
+
+  // Highlight: what the pointer is on, else the found object, else a single selection.
+  const focusId =
+    state.hoveredId ?? state.framedId ?? (state.selection.length === 1 ? state.selection[0] : null)
+  const focusObject = state.objects.find((o) => o.id === focusId)
+  React.useEffect(() => {
+    if (status.kind !== "ready") return
+    ref.current?.focus(focusObject ? focusFor(focusObject) : null)
+  }, [focusObject, status.kind])
 
   // Dev only: measure poses from the console with __splat.getPose().
   React.useEffect(() => {
@@ -67,7 +96,10 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
         rotation={LIVE_WORLD.rotation}
         onStatus={setStatus}
         onFirstInteraction={() => setTouched(true)}
+        onFrame={(project) => markersRef.current?.place(project)}
       />
+
+      {status.kind === "ready" && <SplatMarkers ref={markersRef} />}
 
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="flex flex-col items-start gap-2">{topLeft}</div>
