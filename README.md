@@ -19,11 +19,12 @@ So the prototype starts from the plant, not from the viewer: search for a part, 
 
 ## What's here
 
-- **Parts list** — the start screen: part number, name, stock, location and status (`low · idle · installed only`), filters, sorting, and a detail drawer with stock by location, which equipment the part is installed in, and similar parts with the reason. Every location is a link: into the room if it's scanned, onto the plan if it's inventory only.
+- **Parts list** — the start screen: part number, name, stock, location and status (`low · idle · installed only`), filters, sorting, and a detail drawer with stock by location, which equipment the part is installed in, substitutes and similar parts with the reason, and *Also known as*: the names the same part carries in the ERP, a datasheet or an invoice, merged into one record. Every location is a link: into the room if it's scanned, onto the plan if it's inventory only.
 - **Plant overview** — a floor plan with five rooms (one `scanned`, four `not scanned`), a search field that takes a name or a part number, and results grouped by room: `in world` (exact object, click to enter) or `inventory only` (location as text, "scan this room to locate parts in 3D"). Pinch-to-zoom and drag on mobile.
 - **Room** — the workshop scene with segmented objects as overlays and tracking labels; entering from a search result frames the object and opens its card. A minimap in the corner shows the current room and returns to the plan. 300 ms zoom-and-fade between levels, static swap with reduced motion.
 - **Segmentation panel** — concept input (and what it can't do), object list with explicit states (`lifted · low confidence · failed` with a reason and Retry), multi-select, Gaussian view as a three-way switch, server status pill with latency.
 - **Live 3D (local only)** — a `Still · Live 3D` switch in the room. Live loads the SpAItial world as a SOG splat in PlayCanvas: drag to look, scroll or pinch to zoom, right-drag to move. "Find" and "Find spare" fly the camera to the object and turn it a little so the object clears the card. Controls are a one-line hint that fades after the first drag, plus a non-modal panel on `?`. The still frame stays the default and the fallback (loading, error, no WebGL). See *Running the live world* below.
+- **Substitute instead of a dead end** — when a part in a unit has no spare (the impeller in pump P-104), the card says so and offers a stocked part that does the same job, with the reason, and **Find substitute** takes you to its bin. Matches are labelled `exact duplicate · functional substitute · related`, and `related` is never offered as a swap. The substitute here has sat idle for 13 months, so using it is also the reuse case.
 - **Object card** — *Object* (splats, views, confidence) and *Parts in this unit* on equipment, with a "Find spare" action that frames the cabinet; *Bins* on the cabinet, a 2×3 grid with the searched bin highlighted.
 - Desktop and 375 px, keyboard for everything that isn't the camera (`/` search, `G` segment, `Esc` back, `↑/↓`, `1/2/3`), reduced motion respected, state in the URL so a link opens the same view.
 
@@ -68,7 +69,7 @@ Honest split: what here mirrors the real pipeline, what is mocked, and what the 
 
 ## Deliberately not built
 
-Real segmentation · a hosted live world (see below) · 3D masks: Live 3D shows the world, the object overlays stay on the still frame · batch sweep · parts search beyond the 12 demo records · procurement, suppliers, ordering · auth · persistence beyond this browser.
+Real segmentation · a hosted live world (see below) · 3D masks: Live 3D shows the world, the object overlays stay on the still frame · batch sweep · parts search beyond the 13 demo records · real harmonization or similarity: aliases and matches are hand-written demo data · procurement, suppliers, ordering · auth · persistence beyond this browser.
 
 ## Next
 

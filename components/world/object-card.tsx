@@ -10,16 +10,17 @@ import {
   equipmentFor,
   getEquipment,
   getPart,
-  isBin,
-  isInWorld,
   partsInstalledIn,
   placeLabel,
+  spareInWorld,
+  stockedSubstitute,
 } from "@/lib/parts"
 import { cn } from "@/lib/utils"
 import { navigate, type Route } from "@/hooks/use-hash-route"
 import { PartDrawer } from "@/components/parts/part-drawer"
 import { DRAWABLE, useWorld, type CardTab } from "@/components/world/world-provider"
 import { StatusBadge } from "@/components/world/status-badge"
+import { MatchBadge } from "@/components/parts/match-badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -98,9 +99,14 @@ function UnitPartsTab({ object, equipment, highlight, q, onOpenPart }: PartTabPr
   return (
     <ul className="flex flex-col gap-1">
       {parts.map((part) => {
-        const spare = part.storedIn.find((l) => isBin(l) && isInWorld(l))
-        const store = spare && isBin(spare) ? getEquipment(spare.assetId) : undefined
         const active = part.partNo === highlight
+        // No spare of its own: offer a stocked substitute, and send the camera to that one instead.
+        const sub = part.storedIn.length ? undefined : stockedSubstitute(part)
+        const target = sub ? sub.part : part
+        const bin = spareInWorld(target)
+        const store = bin ? getEquipment(bin.assetId) : undefined
+        const stockText = (p: typeof part) =>
+          p.storedIn.map((l) => `${placeLabel(l, { shelf: false })} · ${l.qty}`).join(", ")
         return (
           <li
             key={part.partNo}
@@ -115,11 +121,25 @@ function UnitPartsTab({ object, equipment, highlight, q, onOpenPart }: PartTabPr
               <span className="font-mono text-label text-muted-foreground">{part.partNo}</span>
               <span className="text-row">{part.name}</span>
             </button>
+            {sub && (
+              <div className="flex flex-col gap-1 rounded-md border border-dashed p-2">
+                <span className="text-label text-muted-foreground">No spare of this part.</span>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <MatchBadge match={sub.match} />
+                  <button
+                    type="button"
+                    onClick={() => onOpenPart(sub.part.partNo)}
+                    className="rounded-sm font-mono text-label outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {sub.part.partNo}
+                  </button>
+                </span>
+                <span className="text-label text-muted-foreground text-pretty">{sub.reason}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2">
               <span className="min-w-0 text-label text-muted-foreground text-pretty">
-                {part.storedIn.length
-                  ? `spare: ${part.storedIn.map((l) => `${placeLabel(l, { shelf: false })} · ${l.qty}`).join(", ")}`
-                  : "no spare in stock"}
+                {target.storedIn.length ? `${sub ? "substitute" : "spare"}: ${stockText(target)}` : "no spare in stock"}
               </span>
               <Button
                 size="xs"
@@ -128,11 +148,11 @@ function UnitPartsTab({ object, equipment, highlight, q, onOpenPart }: PartTabPr
                 title={store ? undefined : "No spare in a scanned room"}
                 onClick={() =>
                   store &&
-                  navigate({ level: "room", room: store.room, object: store.concept, part: part.partNo, q })
+                  navigate({ level: "room", room: store.room, object: store.concept, part: target.partNo, q })
                 }
               >
                 <SearchIcon aria-hidden data-icon="inline-start" />
-                Find spare
+                {sub ? "Find substitute" : "Find spare"}
               </Button>
             </div>
           </li>
