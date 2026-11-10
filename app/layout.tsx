@@ -5,9 +5,18 @@ import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
+const title = "world-parts · find a part in a segmented world"
+const description =
+  "A design pass on segment-3gs: find a spare part across a plant, in world or inventory only. Segmentation is mocked; the room is a still frame of a SpAItial world."
+
+// Link previews (LinkedIn, X, Slack). The image comes from app/opengraph-image.png and
+// app/twitter-image.png; metadataBase turns it into the absolute URL crawlers need.
 export const metadata: Metadata = {
-  title: "world-parts · find a part in a segmented world",
-  description: "A design pass on segment-3gs: find a spare part across a plant, in world or inventory only. Segmentation is mocked; the room is a still frame of a SpAItial world.",
+  metadataBase: new URL("https://world-parts.vercel.app"),
+  title,
+  description,
+  openGraph: { type: "website", url: "/", siteName: "world-parts", title, description },
+  twitter: { card: "summary_large_image", title, description },
 }
 
 export const viewport: Viewport = {
