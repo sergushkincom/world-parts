@@ -31,7 +31,7 @@ export function SegmentationPanel() {
         "relative flex shrink-0 flex-col bg-card text-card-foreground",
         "max-panel:h-(--sheet-h) max-panel:rounded-t-xl max-panel:border-t max-panel:shadow-[0_-8px_24px_rgb(0_0_0/0.25)]",
         dragFraction === null && "motion-transition max-panel:transition-[height] max-panel:duration-300",
-        "panel:h-dvh panel:border-l motion-transition panel:transition-[width] panel:duration-200",
+        "panel:h-full panel:border-l motion-transition panel:transition-[width] panel:duration-200",
         collapsed ? "panel:w-rail" : "panel:w-panel",
       )}
     >
