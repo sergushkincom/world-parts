@@ -150,3 +150,6 @@ vite.config.ts.timestamp-*
 
 # Next.js generated types
 next-env.d.ts
+
+# Large splat files: hosted outside git
+public/splats/

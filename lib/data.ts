@@ -48,6 +48,36 @@ export const SCENE = {
   alt: "Still frame of a factory workshop interior",
 } as const
 
+/**
+ * Live 3D: the same SpAItial world as the still frame, exported as SOG.
+ * Hosted outside git; NEXT_PUBLIC_SPLAT_URL points at it. Camera poses are measured by hand in the viewer.
+ */
+export const LIVE_WORLD = {
+  src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
+  sizeLabel: "24 MB",
+  /** SpAItial exports are already y-up; kept as a knob for other sources. */
+  rotation: [0, 0, 0] as [number, number, number],
+  home: { position: [0, 0, 0], target: [0, 0, -1] } as CameraPose,
+  /** With the card open, turn the camera right by this many radians (~17°) so the object clears the card. */
+  cardTurn: 0.3,
+  /**
+   * Where "Find" flies the camera, per object id. Objects without a pose keep the current view.
+   * Targets: splat centers inside each object's still-frame polygon (nearest quarter by depth),
+   * projected with the still's camera (origin, looking −Z, 60° vertical FOV). Pump and cabinet framed by hand.
+   */
+  poses: {
+    "obj-pump": { target: [-0.66, -0.55, -4.56], position: [0.31, -0.37, -2.69] },
+    "obj-cabinet": { target: [-0.11, 0.6, -12.71], position: [0.55, 0.37, -5.72] },
+    "obj-valve": { target: [2.41, 0.79, -4.58], position: [0.83, 0.53, -2.52] },
+    "obj-motor": { target: [1.84, -0.76, -5.3], position: [0.51, -0.32, -2.91] },
+    "obj-pallet": { target: [1.91, -1.03, -3.18], position: [0.55, -0.47, -1.75] },
+    "obj-extinguisher": { target: [-2.94, 0.73, -5.45], position: [-1.12, 0.5, -3] },
+    "obj-hose": { target: [1.53, 0.41, -1.88], position: [0.28, 0.31, -0.96] },
+  } as Record<string, CameraPose>,
+} as const
+
+export type CameraPose = { position: [number, number, number]; target: [number, number, number] }
+
 export const TIMING = {
   /** UI mock: how long one view takes to segment. */
   segmentMsPerView: 2500,
