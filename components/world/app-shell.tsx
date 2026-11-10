@@ -6,6 +6,7 @@ import { useRoomTransition } from "@/hooks/use-room-transition"
 import { PartsView } from "@/components/parts/parts-view"
 import { PlantView } from "@/components/plant/plant-view"
 import { RoomView } from "@/components/world/room-view"
+import { SiteFooter } from "@/components/site-footer"
 
 export function AppShell() {
   const route = useHashRoute()
@@ -13,8 +14,8 @@ export function AppShell() {
   useRoomTransition(route, viewRef)
 
   return (
-    <div className="relative isolate h-dvh overflow-hidden">
-      <div ref={viewRef} className="relative z-10 h-dvh will-change-transform">
+    <div className="relative isolate flex h-dvh flex-col overflow-hidden">
+      <div ref={viewRef} className="relative z-10 min-h-0 flex-1 will-change-transform">
         {route.level === "parts" ? (
           <PartsView q={route.q} part={route.part ?? null} />
         ) : route.level === "plant" ? (
@@ -24,6 +25,7 @@ export function AppShell() {
           <RoomView route={route} />
         )}
       </div>
+      <SiteFooter />
     </div>
   )
 }

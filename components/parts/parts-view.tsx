@@ -77,7 +77,7 @@ export function PartsView({ q, part }: { q: string; part: string | null }) {
   const term = q.trim()
 
   return (
-    <div className="flex h-dvh flex-col bg-background text-foreground">
+    <div className="flex h-full flex-col bg-background text-foreground">
       <header className="flex flex-col gap-3 border-b px-4 pt-4 pb-3 md:px-6">
         <div className="flex items-center gap-3 max-[600px]:flex-wrap">
           <h1 className="hidden shrink-0 text-row font-semibold sm:block">Parts</h1>

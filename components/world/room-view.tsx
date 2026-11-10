@@ -56,7 +56,7 @@ export function RoomView({ route }: { route: RoomRoute }) {
   useObjectInHash(route)
 
   return (
-    <div className="flex h-dvh flex-col panel:flex-row">
+    <div className="flex h-full flex-col panel:flex-row">
       <main className="relative min-h-0 flex-1">
         <h1 className="sr-only">world-parts — workshop, segmented scene</h1>
         <Scene topLeft={<BackToPlant q={route.q} />} />

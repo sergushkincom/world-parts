@@ -91,8 +91,9 @@ export function useRoomTransition(route: Route, ref: React.RefObject<HTMLDivElem
     if (!shouldAnimate || !el) return
     if (prefersReducedMotion()) return
 
-    const vw = window.innerWidth
-    const vh = window.innerHeight
+    // The view's own box, not the window: the site footer sits under it.
+    const vw = el.clientWidth
+    const vh = el.clientHeight
     const timing = { duration: TIMING.roomTransitionMs, easing: TIMING.roomTransitionEasing }
     let zoomed: string
     let planAnimation: Animation | null = null

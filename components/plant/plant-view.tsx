@@ -70,7 +70,7 @@ export function PlantView({ q, pin = null }: { q: string; pin?: RoomId | null })
   }, [])
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div className="flex h-full flex-col">
       <header className="relative z-20 flex items-start gap-2 px-4 pt-5 pb-2 max-[600px]:flex-col max-[600px]:items-center max-[600px]:pt-4">
         <h1 className="sr-only">world-parts — plant overview</h1>
         <div className="flex w-full min-w-0 flex-1 justify-center">
