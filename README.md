@@ -24,6 +24,7 @@ So the prototype starts from the plant, not from the viewer: search for a part, 
 - **Room** — the workshop scene with segmented objects as overlays and tracking labels; entering from a search result frames the object and opens its card. A minimap in the corner shows the current room and returns to the plan. 300 ms zoom-and-fade between levels, static swap with reduced motion.
 - **Segmentation panel** — concept input (and what it can't do), object list with explicit states (`lifted · low confidence · failed` with a reason and Retry), multi-select, Gaussian view as a three-way switch, server status pill with latency.
 - **Live 3D (local only)** — a `Still · Live 3D` switch in the room. Live loads the SpAItial world as a SOG splat in PlayCanvas: drag to look, scroll or pinch to zoom, right-drag to move. "Find" and "Find spare" fly the camera to the object and turn it a little so the object clears the card. Controls are a one-line hint that fades after the first drag, plus a non-modal panel on `?`. The still frame stays the default and the fallback (loading, error, no WebGL). See *Running the live world* below.
+- **Objects in the 3D world** — the still's labels (dot, name, splat count) pinned to each object's splats, so they stay on the object from any angle. Hover one and the object's splats light up in its colour, in the shape of its still-frame mask, while the rest of the world dims; click it and the camera flies there and the card opens. The found object's label pulses. How: the still's masks are lifted onto the world. Every splat is projected into the still with the still's own camera (calibrated by overlaying the still on the render); a splat is part of an object when it lands in the object's mask at the object's depth, so the wall behind the cabinet stays dark. Limit: sides the still never saw aren't in any mask.
 - **Substitute instead of a dead end** — when a part in a unit has no spare (the impeller in pump P-104), the card says so and offers a stocked part that does the same job, with the reason, and **Find substitute** takes you to its bin. Matches are labelled `exact duplicate · functional substitute · related`, and `related` is never offered as a swap. The substitute here has sat idle for 13 months, so using it is also the reuse case.
 - **Object card** — *Object* (splats, views, confidence) and *Parts in this unit* on equipment, with a "Find spare" action that frames the cabinet; *Bins* on the cabinet, a 2×3 grid with the searched bin highlighted.
 - Desktop and 375 px, keyboard for everything that isn't the camera (`/` search, `G` segment, `Esc` back, `↑/↓`, `1/2/3`), reduced motion respected, state in the URL so a link opens the same view.
@@ -49,6 +50,7 @@ Honest split: what here mirrors the real pipeline, what is mocked, and what the 
 |---|---|---|
 | Room scene | PlayCanvas viewer on a `.ply` splat exported from SpAItial | **Still frame** of a SpAItial world (Echo-2, image to world) by default; **Live 3D** renders the same world's SOG export with PlayCanvas, locally |
 | Camera to object | — (orbit only) | Hand-placed camera pose per object: target from the splat centers inside each object's still-frame polygon, projected with the still's camera |
+| Object highlight in 3D | Per-splat masks from the lifted segmentation | Still-frame masks lifted onto the splats: project each splat with the still's camera, keep the ones in the mask and the object's depth band. Tint in a PlayCanvas `setWorkBufferModifier`, re-run only when the focus changes |
 | Concept input, "needs a concept" | `POST /segment` with `prompts.text`, one concept per call | Mocked: no server call, results come from `lib/data.ts` |
 | Server pill `mock · mobile_sam · sam3` | `GET /health` and the model tiers | Mocked, including "simulate unreachable" |
 | Object states `lifted · low confidence · failed` | `liftMask` plus per-Gaussian voting in `SegmentationRegistry` | Mocked; `VOTE_THRESHOLD = 4` mirrors the idea that one view is not enough |
@@ -69,7 +71,7 @@ Honest split: what here mirrors the real pipeline, what is mocked, and what the 
 
 ## Deliberately not built
 
-Real segmentation · a hosted live world (see below) · 3D masks: Live 3D shows the world, the object overlays stay on the still frame · batch sweep · parts search beyond the 13 demo records · real harmonization or similarity: aliases and matches are hand-written demo data · procurement, suppliers, ordering · auth · persistence beyond this browser.
+Real segmentation · a hosted live world (see below) · true 3D masks: Live 3D lifts the still's 2D masks, so only what the still saw is highlighted · batch sweep · parts search beyond the 13 demo records · real harmonization or similarity: aliases and matches are hand-written demo data · procurement, suppliers, ordering · auth · persistence beyond this browser.
 
 ## Next
 

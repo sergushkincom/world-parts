@@ -3,11 +3,13 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react"
-import { LIVE_WORLD, type CameraPose } from "@/lib/data"
-import type { SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
+import { LIVE_WORLD, OBJECT_PALETTE, type CameraPose, type WorldObject } from "@/lib/data"
+import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
+import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
-import { useWorld } from "@/components/world/world-provider"
+import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { ViewControlsHelp } from "@/components/world/view-controls-help"
+import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
 
 // WebGL can't run on the server: load the engine only in the browser, and only when Live 3D is on.
 const SplatCanvas = dynamic(() => import("@/components/world/splat-canvas").then((m) => m.SplatCanvas), {
@@ -31,18 +33,51 @@ function besideCard(pose: CameraPose): CameraPose {
   return { position: pose.position, target: [px + nx, py + (ty - py), pz + nz] }
 }
 
+function focusFor(o: WorldObject, stats: SplatStats | undefined): Focus | null {
+  if (!stats) return null
+  const hex = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
+  const color = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number]
+  return { maskId: stats.maskId, near: stats.near, far: stats.far, color }
+}
+
 function useHint() {
   const [touch, setTouch] = React.useState(false)
   React.useEffect(() => setTouch(window.matchMedia("(pointer: coarse)").matches), [])
-  return touch ? "Drag to look · Pinch to zoom" : "Drag to look · Scroll to zoom · ? for all controls"
+  return touch
+    ? "Tap a marker to explore · Drag to look"
+    : "Click a marker to explore · Drag to look · ? for all controls"
 }
 
 export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; onFallback: () => void }) {
   const ref = React.useRef<SplatCanvasHandle>(null)
+  const markersRef = React.useRef<MarkersHandle>(null)
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
   const [touched, setTouched] = React.useState(false)
   const hint = useHint()
   const { state } = useWorld()
+
+  // Lift the still's masks onto the world once it's loaded: which splats belong to which object.
+  const maskObjects: MaskObject[] = React.useMemo(
+    () =>
+      state.objects
+        .filter((o) => DRAWABLE.includes(o.status) && o.polygon)
+        .map((o) => {
+          const target = LIVE_WORLD.poses[o.id]?.target
+          return { id: o.id, polygon: o.polygon!, depth: target ? -target[2] : undefined }
+        }),
+    [state.objects],
+  )
+  const maskKey = maskObjects.map((o) => o.id).join(",")
+  const [stats, setStats] = React.useState<Map<string, SplatStats>>(new Map())
+  React.useEffect(() => {
+    if (status.kind !== "ready") return
+    const centers = ref.current?.centers()
+    if (!centers || !maskObjects.length) return
+    const mask = drawIdMask(maskObjects)
+    ref.current?.setObjectMask(mask)
+    setStats(measureObjects(centers, mask, maskObjects))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure only when the set of objects changes
+  }, [status.kind, maskKey])
 
   // Find → fly: the framed object's hand-measured pose, or home when nothing is framed.
   React.useEffect(() => {
@@ -51,6 +86,15 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
     if (pose) ref.current?.flyTo(state.cardId ? besideCard(pose) : pose)
     else if (!state.framedId) ref.current?.reset()
   }, [state.framedId, state.cardId, status.kind])
+
+  // Highlight: what the pointer is on, else the found object, else a single selection.
+  const focusId =
+    state.hoveredId ?? state.framedId ?? (state.selection.length === 1 ? state.selection[0] : null)
+  const focusObject = state.objects.find((o) => o.id === focusId)
+  React.useEffect(() => {
+    if (status.kind !== "ready") return
+    ref.current?.focus(focusObject ? focusFor(focusObject, stats.get(focusObject.id)) : null)
+  }, [focusObject, stats, status.kind])
 
   // Dev only: measure poses from the console with __splat.getPose().
   React.useEffect(() => {
@@ -67,7 +111,10 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
         rotation={LIVE_WORLD.rotation}
         onStatus={setStatus}
         onFirstInteraction={() => setTouched(true)}
+        onFrame={(project) => markersRef.current?.place(project)}
       />
+
+      {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} />}
 
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="flex flex-col items-start gap-2">{topLeft}</div>
