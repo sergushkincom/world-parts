@@ -111,6 +111,9 @@
   --color-status-low: var(--status-low);
   --color-status-failed: var(--status-failed);
   --color-status-active: var(--status-active);
+  /* The floor plan is a blueprint in both themes: navy paper, the dark theme's active blue. */
+  --color-blueprint: #0c2642;
+  --color-blueprint-active: #5aa2ff;
   --color-status-queued: var(--status-queued);
   --color-scene: var(--scene-bg);
   --color-scene-ink: var(--scene-ink);
@@ -196,8 +199,11 @@
   animation: segment-progress var(--segment-ms, 2500ms) linear forwards;
 }
 
-.plan-invert {
-  filter: invert(1) brightness(0.8);
+.blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.05) 2px, transparent 2px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.05) 2px, transparent 2px);
+  background-size: 50px 50px;
 }
 
 @keyframes pin-pulse {

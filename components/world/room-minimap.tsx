@@ -4,7 +4,7 @@ import * as React from "react"
 import { PLAN, ROOMS, VIEWPOINTS, type Point, type RoomId } from "@/lib/data"
 import { conePath, planMapper, roomViewBox, STILL_VIEW, type CameraView } from "@/lib/minimap"
 import { navigate } from "@/hooks/use-hash-route"
-import { planPoints } from "@/components/plant/floor-plan"
+import { BLUEPRINT, planPoints } from "@/components/plant/floor-plan"
 
 export type MinimapHandle = { setCamera: (view: CameraView) => void }
 
@@ -21,10 +21,8 @@ type Props = {
   find: { name: string; at: Point } | null
 }
 
-/** A blueprint is always dark, so the dark theme's active blue in both themes. */
+/** A blueprint is always dark, so the dark theme's active blue in both themes (`--color-blueprint-active`). */
 const ACTIVE = "#5aa2ff"
-/** The plan split into walls and furniture (white on transparent, same size as the plan), stacked at two weights. */
-const MINIMAP_LAYERS = { walls: "/minimap/plan-walls.webp", furniture: "/minimap/plan-furniture.webp" }
 
 /** Card widths: plan area in CSS px, used to keep dots and rings the same size on screen at any crop. */
 const WIDE = { min: "(min-width: 900px)", plan: 240 }
@@ -134,8 +132,8 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
 
         <rect x={vb[0]} y={vb[1]} width={vb[2]} height={vb[3]} fill={`url(#${id}-grid)`} />
         {/* An SVG image, not <img>: the viewBox crops the plan together with the marks. */}
-        <image href={MINIMAP_LAYERS.furniture} width={PLAN.width} height={PLAN.height} opacity={0.43} />
-        <image href={MINIMAP_LAYERS.walls} width={PLAN.width} height={PLAN.height} opacity={0.92} />
+        <image href={BLUEPRINT.furniture} width={PLAN.width} height={PLAN.height} opacity={0.43} />
+        <image href={BLUEPRINT.walls} width={PLAN.width} height={PLAN.height} opacity={0.92} />
         <polygon
           points={planPoints(room.polygon)}
           fill={ACTIVE}

@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PlanViewport, type PlanView, type ViewportSize } from "@/components/plant/plan-viewport"
 
+/** The plan split into walls and furniture (white on transparent, same size as the plan); shared with the room minimap. */
+export const BLUEPRINT = { walls: "/minimap/plan-walls.webp", furniture: "/minimap/plan-furniture.webp" }
+
 export const planPoints = (polygon: Point[]) => polygon.map((p) => p.join(",")).join(" ")
 
 export function PlanPin() {
@@ -136,14 +139,26 @@ export function FloorPlan({
 
   const layer = (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element -- static plan, needs a CSS filter and exact pixel mapping */}
+      {/* Blueprint: faint grid, then the plan split into furniture and walls (white on transparent) at two weights. */}
+      <div aria-hidden className="blueprint-grid absolute inset-0" />
+      {/* eslint-disable-next-line @next/next/no-img-element -- static plan layers, exact pixel mapping */}
       <img
-        src={PLAN.imageSrc}
+        src={BLUEPRINT.furniture}
+        alt=""
+        aria-hidden
+        width={PLAN.width}
+        height={PLAN.height}
+        draggable={false}
+        className="absolute inset-0 size-full opacity-[0.43] select-none"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element -- static plan layers, exact pixel mapping */}
+      <img
+        src={BLUEPRINT.walls}
         alt={PLAN.alt}
         width={PLAN.width}
         height={PLAN.height}
         draggable={false}
-        className="plan-invert absolute inset-0 size-full select-none"
+        className="absolute inset-0 size-full opacity-[0.92] select-none"
       />
       <svg viewBox={`0 0 ${PLAN.width} ${PLAN.height}`} aria-hidden className="absolute inset-0 size-full">
         {ROOMS.map((room) => {
@@ -162,10 +177,11 @@ export function FloorPlan({
               onClick={() => onRoom(room)}
               className={cn(
                 "motion-transition cursor-pointer fill-transparent stroke-transparent transition-[fill,stroke] duration-200",
-                hovered === room.id && "fill-foreground/5 stroke-foreground/40",
+                room.scanned && "fill-blueprint-active/8 stroke-blueprint-active/60",
+                hovered === room.id && "fill-white/8 stroke-white/50",
                 lit && "fill-status-active/10 stroke-status-active/70",
                 focused && "fill-status-active/20 stroke-status-active",
-                dim && "fill-background/60",
+                dim && "fill-blueprint/60",
               )}
             />
           )
@@ -236,7 +252,7 @@ export function FloorPlan({
 
   return (
     <>
-      <PlanViewport layer={layer} overlay={overlay} />
+      <PlanViewport layer={layer} overlay={overlay} className="rounded-xl bg-blueprint" />
       <div ref={measureRef} aria-hidden className="pointer-events-none invisible fixed top-0 left-0 flex flex-col items-start">
         {ROOMS.map((room) => (
           <span key={room.id} data-measure={room.id} className={LABEL_CLASS}>
