@@ -360,9 +360,29 @@ export const PLAN = {
   maxZoom: 5,
   minimapWidth: 180,
   alt: "Floor plan of the plant: production hall, workshop, storeroom, office and loading bay",
-  /** Where the capture camera stood in the scanned room — the dot on the minimap. */
-  camera: [1120, 392] as Point,
 } as const
+
+/**
+ * The live world on the floor plan. Two measured points per scanned room: world (x, z) ↔ plan px.
+ * Measured from the splats: side walls at x ≈ ±2.8, back wall at z ≈ −12.3, the camera stands in the door (z = 0).
+ * The world was generated from a photo and the plan drawn separately, so the room is longer and narrower
+ * in the world than on the plan: x and z get their own scale for positions. The view cone keeps its true angle.
+ */
+export const PLAN_CALIBRATION: Partial<Record<RoomId, { world: [Point, Point]; plan: [Point, Point] }>> = {
+  workshop: {
+    world: [[-2.8, -12.3], [2.8, 0]],
+    plan: [[872, 145], [1198, 410]],
+  },
+}
+
+/** Where to stand in the live world. Order is the walk order: the dashed path on the minimap follows it. */
+export const VIEWPOINTS: Partial<Record<RoomId, { id: string; label: string; pose: CameraPose }[]>> = {
+  workshop: [
+    { id: "entrance", label: "Entrance", pose: { position: [0, 0, 0], target: [0, 0, -1] } },
+    { id: "aisle", label: "Centre aisle", pose: { position: [0, 0, -5], target: [0, -0.1, -6.5] } },
+    { id: "cabinet", label: "By the cabinet", pose: { position: [-2, 0.2, -7.9], target: [-0.11, 0.5, -12.4] } },
+  ],
+}
 
 export const ROOMS: Room[] = [
   {

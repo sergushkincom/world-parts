@@ -1,15 +1,17 @@
 "use client"
 
 import * as React from "react"
-import type { RoomId } from "@/lib/data"
+import { LIVE_WORLD, VIEWPOINTS, type RoomId } from "@/lib/data"
+import { planMapper } from "@/lib/minimap"
 import { navigate } from "@/hooks/use-hash-route"
 import { useWorldShortcuts } from "@/hooks/use-world-shortcuts"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { ObjectCard } from "@/components/world/object-card"
-import { BackToPlant, RoomMinimap } from "@/components/world/room-nav"
+import { BackToPlant } from "@/components/world/room-nav"
+import { RoomMinimap, type MinimapHandle } from "@/components/world/room-minimap"
 import { Scene } from "@/components/world/scene"
 import { SegmentationPanel } from "@/components/world/segmentation-panel"
-import { SplatView } from "@/components/world/splat-view"
+import { SplatView, type SplatViewHandle } from "@/components/world/splat-view"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type ViewMode = "still" | "live"
@@ -80,18 +82,55 @@ export function RoomView({ route }: { route: RoomRoute }) {
   useWorldShortcuts({ onEscapeRoot: () => navigate({ level: "plant", q: route.q }) })
   useObjectInHash(route)
   const [mode, setMode] = React.useState<ViewMode>("still")
+  const { state } = useWorld()
+  const splatRef = React.useRef<SplatViewHandle>(null)
+  const minimapRef = React.useRef<MinimapHandle>(null)
+  const [liveReady, setLiveReady] = React.useState(false)
+  const [viewpoint, setViewpoint] = React.useState<number | null>(null)
+  const [visited, setVisited] = React.useState<number[]>([])
+
+  // Find takes over the camera; the walk starts again from wherever Find left it.
+  React.useEffect(() => setViewpoint(null), [state.framedId, mode])
+
+  const walkTo = (i: number) => {
+    const vp = VIEWPOINTS[route.room]?.[i]
+    if (!vp) return
+    splatRef.current?.flyTo(vp.pose)
+    setViewpoint(i)
+    setVisited((v) => (v.includes(i) ? v : [...v, i]))
+  }
+
+  const map = planMapper(route.room)
+  const framed = state.objects.find((o) => o.id === state.framedId)
+  const target = framed ? LIVE_WORLD.poses[framed.id]?.target : undefined
+  const find = framed && target && map ? { name: framed.name, at: map.inRoom(target[0], target[2]) } : null
 
   return (
     <div className="flex h-full flex-col panel:flex-row">
       <main className="relative min-h-0 flex-1">
         <h1 className="sr-only">world-parts — workshop, segmented scene</h1>
         {mode === "live" ? (
-          <SplatView topLeft={<BackToPlant q={route.q} />} onFallback={() => setMode("still")} />
+          <SplatView
+            ref={splatRef}
+            topLeft={<BackToPlant q={route.q} />}
+            onFallback={() => setMode("still")}
+            onCamera={(view) => minimapRef.current?.setCamera(view)}
+            onReadyChange={setLiveReady}
+          />
         ) : (
           <Scene topLeft={<BackToPlant q={route.q} />} />
         )}
         <ViewModeSwitch mode={mode} onChange={setMode} />
-        <RoomMinimap roomId={route.room} q={route.q} />
+        <RoomMinimap
+          ref={minimapRef}
+          roomId={route.room}
+          q={route.q}
+          live={mode === "live" && liveReady}
+          viewpoint={viewpoint}
+          visited={visited}
+          onViewpoint={walkTo}
+          find={find}
+        />
         <ObjectCard part={route.part ?? null} q={route.q} />
       </main>
       <SegmentationPanel />

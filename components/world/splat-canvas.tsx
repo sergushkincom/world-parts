@@ -22,6 +22,7 @@ import {
 } from "playcanvas"
 import { CameraControls } from "playcanvas/scripts/esm/camera-controls.mjs"
 import { STILL_PROJECT_GLSL } from "@/lib/splat-mask"
+import type { CameraView } from "@/lib/minimap"
 
 export type CameraPose = { position: [number, number, number]; target: [number, number, number] }
 
@@ -81,8 +82,11 @@ type Props = {
   rotation: [number, number, number]
   onStatus: (s: SplatStatus) => void
   onFirstInteraction?: () => void
-  /** Called every frame after the camera moved, with a projector for 3D points. Write to the DOM here, not to state. */
-  onFrame?: (project: Project) => void
+  /**
+   * Called every frame after the camera moved, with a projector for 3D points and where the camera stands and
+   * looks on the floor. Write to the DOM here, not to state.
+   */
+  onFrame?: (project: Project, view: CameraView) => void
 }
 
 const v = (p: [number, number, number]) => new Vec3(p[0], p[1], p[2])
@@ -226,7 +230,21 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       const visible = screen.x >= -40 && screen.y >= -40 && screen.x <= canvas.clientWidth + 40 && screen.y <= canvas.clientHeight + 40
       return { x: screen.x, y: screen.y, visible }
     }
-    const onUpdate = () => frameRef.current?.(project)
+    const view: CameraView = { x: 0, z: 0, fx: 0, fz: -1, hfov: 1 }
+    const onUpdate = () => {
+      const fn = frameRef.current
+      if (!fn) return
+      const p = camera.getPosition()
+      const f = camera.forward
+      const flat = Math.hypot(f.x, f.z) || 1
+      const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight)
+      view.x = p.x
+      view.z = p.z
+      view.fx = f.x / flat
+      view.fz = f.z / flat
+      view.hfov = 2 * Math.atan(Math.tan(((camera.camera!.fov / 2) * Math.PI) / 180) * aspect)
+      fn(project, view)
+    }
     app.on("postrender", onUpdate)
     if (process.env.NODE_ENV === "development") (window as unknown as { __pcApp?: Application }).__pcApp = app
 
