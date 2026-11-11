@@ -21,6 +21,11 @@ type Props = {
   find: { name: string; at: Point } | null
 }
 
+/** A blueprint is always dark, so the dark theme's active blue in both themes. */
+const ACTIVE = "#5aa2ff"
+/** The plan split into walls and furniture (white on transparent, same size as the plan), stacked at two weights. */
+const MINIMAP_LAYERS = { walls: "/minimap/plan-walls.webp", furniture: "/minimap/plan-furniture.webp" }
+
 /** Card widths: plan area in CSS px, used to keep dots and rings the same size on screen at any crop. */
 const WIDE = { min: "(min-width: 900px)", plan: 240 }
 const NARROW_PLAN = 96
@@ -122,24 +127,27 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
             <polygon points={planPoints(room.polygon)} />
           </clipPath>
           <radialGradient ref={gradRef} id={`${id}-cone`} gradientUnits="userSpaceOnUse" r={300}>
-            <stop offset="0" stopColor="var(--status-active)" stopOpacity={0.6} />
-            <stop offset="1" stopColor="var(--status-active)" stopOpacity={0.08} />
+            <stop offset="0" stopColor={ACTIVE} stopOpacity={0.7} />
+            <stop offset="1" stopColor={ACTIVE} stopOpacity={0.1} />
           </radialGradient>
         </defs>
 
         <rect x={vb[0]} y={vb[1]} width={vb[2]} height={vb[3]} fill={`url(#${id}-grid)`} />
         {/* An SVG image, not <img>: the viewBox crops the plan together with the marks. */}
-        <image
-          href={PLAN.imageSrc}
-          width={PLAN.width}
-          height={PLAN.height}
-          className="plan-invert"
-          style={{ mixBlendMode: "screen", opacity: 0.85 }}
+        <image href={MINIMAP_LAYERS.furniture} width={PLAN.width} height={PLAN.height} opacity={0.43} />
+        <image href={MINIMAP_LAYERS.walls} width={PLAN.width} height={PLAN.height} opacity={0.92} />
+        <polygon
+          points={planPoints(room.polygon)}
+          fill={ACTIVE}
+          fillOpacity={0.08}
+          stroke={ACTIVE}
+          strokeOpacity={0.6}
+          strokeWidth={1}
+          vectorEffect="non-scaling-stroke"
         />
-        <polygon points={planPoints(room.polygon)} className="fill-status-active/15" />
 
         <g clipPath={`url(#${id}-room)`}>
-          <path ref={coneRef} fill={`url(#${id}-cone)`} stroke="var(--status-active)" strokeOpacity={0.8} vectorEffect="non-scaling-stroke" strokeWidth={1} />
+          <path ref={coneRef} fill={`url(#${id}-cone)`} stroke={ACTIVE} strokeOpacity={0.8} vectorEffect="non-scaling-stroke" strokeWidth={1} />
         </g>
 
         {live && points.length > 1 && (
@@ -179,7 +187,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
                 <circle
                   cx={p.at[0]}
                   cy={p.at[1]}
-                  r={5 * k}
+                  r={4 * k}
                   fill={visited.includes(i) ? "rgba(255,255,255,0.25)" : "transparent"}
                   stroke="white"
                   strokeOpacity={0.75}
@@ -198,13 +206,13 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
         )}
 
         <g ref={dotRef}>
-          <circle r={11 * k} className="fill-status-active" fillOpacity={0.27} />
-          <circle r={4.5 * k} className="fill-status-active" stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          <circle r={11 * k} fill={ACTIVE} fillOpacity={0.27} />
+          <circle r={4.5 * k} fill={ACTIVE} stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
         </g>
       </svg>
 
       {wide && others > 0 && (
-        <p className="font-mono text-[10px] text-white/60">
+        <p className="text-[11px] text-white/60">
           {others} more rooms · inventory only
         </p>
       )}

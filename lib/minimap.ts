@@ -22,8 +22,11 @@ export function planMapper(roomId: RoomId) {
   const sx = (px1 - px0) / (wx1 - wx0)
   const sz = (py1 - py0) / (wz1 - wz0)
   const toPlan = (x: number, z: number): Point => [px0 + (x - wx0) * sx, py0 + (z - wz0) * sz]
-  /** A floor direction mapped the same way, so angles on the plan match what the camera sees. */
-  const dirToPlan = (dx: number, dz: number): Point => [dx * sx, dz * sz]
+  /**
+   * Directions keep their true angle: the plan room is wider than the world's, so stretching x would open an
+   * 82° view into a ~140° fan. The cone shows how much the camera sees, not where each wall lands.
+   */
+  const dirToPlan = (dx: number, dz: number): Point => [dx, dz]
   /** Same as toPlan, but kept inside the room: objects measured just past a wall still land in their room. */
   const room = ROOMS.find((r) => r.id === roomId)
   const inRoom = (x: number, z: number, inset = 8): Point => {

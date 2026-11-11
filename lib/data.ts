@@ -366,8 +366,7 @@ export const PLAN = {
  * The live world on the floor plan. Two measured points per scanned room: world (x, z) ↔ plan px.
  * Measured from the splats: side walls at x ≈ ±2.8, back wall at z ≈ −12.3, the camera stands in the door (z = 0).
  * The world was generated from a photo and the plan drawn separately, so the room is longer and narrower
- * in the world than on the plan: x and z get their own scale. Directions (the view cone) go through the
- * same mapping, so the cone still points at the right objects on the plan.
+ * in the world than on the plan: x and z get their own scale for positions. The view cone keeps its true angle.
  */
 export const PLAN_CALIBRATION: Partial<Record<RoomId, { world: [Point, Point]; plan: [Point, Point] }>> = {
   workshop: {
@@ -380,8 +379,8 @@ export const PLAN_CALIBRATION: Partial<Record<RoomId, { world: [Point, Point]; p
 export const VIEWPOINTS: Partial<Record<RoomId, { id: string; label: string; pose: CameraPose }[]>> = {
   workshop: [
     { id: "entrance", label: "Entrance", pose: { position: [0, 0, 0], target: [0, 0, -1] } },
-    { id: "aisle", label: "Centre aisle", pose: { position: [0.4, 0, -4.5], target: [0.2, -0.1, -6] } },
-    { id: "cabinet", label: "By the cabinet", pose: { position: [-0.6, 0.3, -7.5], target: [-0.4, 0.5, -12] } },
+    { id: "aisle", label: "Centre aisle", pose: { position: [0, 0, -5], target: [0, -0.1, -6.5] } },
+    { id: "cabinet", label: "By the cabinet", pose: { position: [-2, 0.2, -7.9], target: [-0.11, 0.5, -12.4] } },
   ],
 }
 
