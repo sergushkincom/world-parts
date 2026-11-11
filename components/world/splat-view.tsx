@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react"
 import { LIVE_WORLD, OBJECT_PALETTE, type CameraPose, type WorldObject } from "@/lib/data"
 import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
+import type { CameraView } from "@/lib/minimap"
 import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
@@ -48,13 +49,33 @@ function useHint() {
     : "Click a marker to explore · Drag to look · ? for all controls"
 }
 
-export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; onFallback: () => void }) {
+export type SplatViewHandle = { flyTo: (pose: CameraPose) => void }
+
+type SplatViewProps = {
+  topLeft?: React.ReactNode
+  onFallback: () => void
+  /** Every frame: where the camera stands and looks on the floor. For the minimap; write to the DOM, not state. */
+  onCamera?: (view: CameraView) => void
+  onReadyChange?: (ready: boolean) => void
+}
+
+export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
+  { topLeft, onFallback, onCamera, onReadyChange },
+  handle,
+) {
   const ref = React.useRef<SplatCanvasHandle>(null)
+  React.useImperativeHandle(handle, () => ({ flyTo: (pose) => ref.current?.flyTo(pose) }))
   const markersRef = React.useRef<MarkersHandle>(null)
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
   const [touched, setTouched] = React.useState(false)
   const hint = useHint()
   const { state } = useWorld()
+  const readyRef = React.useRef(onReadyChange)
+  readyRef.current = onReadyChange
+  React.useEffect(() => {
+    readyRef.current?.(status.kind === "ready")
+    return () => readyRef.current?.(false)
+  }, [status.kind])
 
   // Lift the still's masks onto the world once it's loaded: which splats belong to which object.
   const maskObjects: MaskObject[] = React.useMemo(
@@ -111,7 +132,10 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
         rotation={LIVE_WORLD.rotation}
         onStatus={setStatus}
         onFirstInteraction={() => setTouched(true)}
-        onFrame={(project) => markersRef.current?.place(project)}
+        onFrame={(project, view) => {
+          markersRef.current?.place(project)
+          onCamera?.(view)
+        }}
       />
 
       {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} />}
@@ -175,4 +199,4 @@ export function SplatView({ topLeft, onFallback }: { topLeft?: React.ReactNode; 
       )}
     </div>
   )
-}
+})
