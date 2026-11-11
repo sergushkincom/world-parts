@@ -22,8 +22,8 @@ const PIN_H = 26
 const PIN_GAP = 4
 const DOT = 24
 
-type Rect = { left: number; top: number; right: number; bottom: number }
-type PinLayout = { room: Room; mode: "label" | "dot"; left: number; top: number }
+export type Rect = { left: number; top: number; right: number; bottom: number }
+export type PinLayout = { room: Room; mode: "label" | "dot"; left: number; top: number }
 
 const overlaps = (a: Rect, b: Rect) =>
   a.left < b.right + PIN_GAP && b.left < a.right + PIN_GAP && a.top < b.bottom + PIN_GAP && b.top < a.bottom + PIN_GAP
@@ -35,18 +35,22 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * overlap one already placed, or can't fit the viewport width, collapses to a dot. Rooms whose
  * anchor is panned out of view get no pin.
  */
-function layoutPins(
+export function layoutPins(
   view: PlanView,
   size: ViewportSize,
   widths: Partial<Record<RoomId, number>>,
   hits: Set<RoomId> | null,
   focusRoom: RoomId | null,
+  anchorOf: (room: Room) => Point = (room) => room.anchor,
+  /** Screen rects no label may cover (e.g. the room you're standing in, on the minimap). */
+  obstacles: Rect[] = [],
 ): PinLayout[] {
   const rank = (r: Room) => (r.id === focusRoom ? 0 : hits?.has(r.id) ? 1 : r.scanned ? 2 : 3)
   const ordered = ROOMS.map((room, i) => ({ room, i })).sort((a, b) => rank(a.room) - rank(b.room) || a.i - b.i)
   const visible = ordered.flatMap(({ room }) => {
-    const ax = view.x + room.anchor[0] * view.s
-    const ay = view.y + room.anchor[1] * view.s
+    const [px, py] = anchorOf(room)
+    const ax = view.x + px * view.s
+    const ay = view.y + py * view.s
     if (ax < 0 || ax > size.w || ay < 0 || ay > size.h) return []
     const left = clamp(ax - DOT / 2, EDGE, size.w - EDGE - DOT)
     const top = clamp(ay - DOT / 2, EDGE, size.h - EDGE - DOT)
@@ -58,7 +62,7 @@ function layoutPins(
   const out: PinLayout[] = []
   for (const { room, ax, ay, dot } of visible) {
     const w = widths[room.id]
-    const blockers = [...placed, ...visible.filter((v) => v.room.id !== room.id).map((v) => v.dot)]
+    const blockers = [...obstacles, ...placed, ...visible.filter((v) => v.room.id !== room.id).map((v) => v.dot)]
     const spot =
       w !== undefined && w <= size.w - EDGE * 2
         ? [ay - PIN_H / 2, ay - PIN_H - DOT / 2, ay + DOT / 2]
@@ -79,7 +83,7 @@ function layoutPins(
   return out
 }
 
-function PinContent({ room, lit }: { room: Room; lit: boolean }) {
+export function PinContent({ room, lit }: { room: Room; lit: boolean }) {
   const status = room.scanned ? "scanned" : "not scanned"
   return (
     <>
@@ -100,7 +104,7 @@ function PinContent({ room, lit }: { room: Room; lit: boolean }) {
   )
 }
 
-const LABEL_CLASS =
+export const LABEL_CLASS =
   "flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-card/90 px-2 py-1 text-label font-medium shadow-sm backdrop-blur-sm"
 
 /**
@@ -117,22 +121,7 @@ export function FloorPlan({
   onRoom: (room: Room) => void
 }) {
   const [hovered, setHovered] = React.useState<RoomId | null>(null)
-  const [widths, setWidths] = React.useState<Partial<Record<RoomId, number>>>({})
-  const measureRef = React.useRef<HTMLDivElement>(null)
-
-  React.useLayoutEffect(() => {
-    const el = measureRef.current
-    if (!el) return
-    const measure = () => {
-      const next: Partial<Record<RoomId, number>> = {}
-      el.querySelectorAll<HTMLElement>("[data-measure]").forEach((n) => {
-        next[n.dataset.measure as RoomId] = Math.ceil(n.getBoundingClientRect().width)
-      })
-      setWidths(next)
-    }
-    measure()
-    document.fonts?.ready.then(measure)
-  }, [hits])
+  const [widths, measurer] = usePinWidths(hits)
 
   const layer = (
     <>
@@ -237,13 +226,41 @@ export function FloorPlan({
   return (
     <>
       <PlanViewport layer={layer} overlay={overlay} />
-      <div ref={measureRef} aria-hidden className="pointer-events-none invisible fixed top-0 left-0 flex flex-col items-start">
-        {ROOMS.map((room) => (
-          <span key={room.id} data-measure={room.id} className={LABEL_CLASS}>
-            <PinContent room={room} lit={hits?.has(room.id) ?? false} />
-          </span>
-        ))}
-      </div>
+      {measurer}
     </>
   )
+}
+
+/**
+ * Room pill widths in CSS px, measured from an invisible copy of every pill, so `layoutPins` can tell which
+ * labels fit. Returns the widths and the measuring element to render once.
+ */
+export function usePinWidths(hits: Set<RoomId> | null) {
+  const [widths, setWidths] = React.useState<Partial<Record<RoomId, number>>>({})
+  const measureRef = React.useRef<HTMLDivElement>(null)
+
+  React.useLayoutEffect(() => {
+    const el = measureRef.current
+    if (!el) return
+    const measure = () => {
+      const next: Partial<Record<RoomId, number>> = {}
+      el.querySelectorAll<HTMLElement>("[data-measure]").forEach((n) => {
+        next[n.dataset.measure as RoomId] = Math.ceil(n.getBoundingClientRect().width)
+      })
+      setWidths(next)
+    }
+    measure()
+    document.fonts?.ready.then(measure)
+  }, [hits])
+
+  const measurer = (
+    <div ref={measureRef} aria-hidden className="pointer-events-none invisible fixed top-0 left-0 flex flex-col items-start">
+      {ROOMS.map((room) => (
+        <span key={room.id} data-measure={room.id} className={LABEL_CLASS}>
+          <PinContent room={room} lit={hits?.has(room.id) ?? false} />
+        </span>
+      ))}
+    </div>
+  )
+  return [widths, measurer] as const
 }

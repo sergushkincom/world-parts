@@ -67,3 +67,12 @@ export function roomViewBox(roomId: RoomId, margin = 40): [number, number, numbe
   const y = Math.min(...ys) - margin
   return [x, y, Math.max(...xs) - Math.min(...xs) + margin * 2, Math.max(...ys) - Math.min(...ys) + margin * 2]
 }
+
+/** The whole building with a margin: the plan image has empty black space around it. */
+export function buildingViewBox(margin = 24): [number, number, number, number] {
+  const xs = ROOMS.flatMap((r) => r.polygon.map((p) => p[0]))
+  const ys = ROOMS.flatMap((r) => r.polygon.map((p) => p[1]))
+  const x = Math.min(...xs) - margin
+  const y = Math.min(...ys) - margin
+  return [x, y, Math.max(...xs) - x + margin, Math.max(...ys) - y + margin]
+}
