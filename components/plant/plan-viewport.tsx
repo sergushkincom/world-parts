@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { PLAN, STORAGE_KEYS } from "@/lib/data"
+import { PLAN, ROOMS, STORAGE_KEYS } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 /** Screen-space transform of the plan: plan point (px, py) lands at (x + px·s, y + py·s). */
@@ -13,9 +13,28 @@ const DRAG_SLOP = 6
 const DOUBLE_TAP_MS = 300
 const DOUBLE_TAP_PX = 30
 
-function fitView({ w, h }: ViewportSize): PlanView {
-  const s = Math.min((w - FIT_PAD * 2) / PLAN.width, (h - FIT_PAD * 2) / PLAN.height)
-  return { s, x: (w - PLAN.width * s) / 2, y: (h - PLAN.height * s) / 2 }
+/**
+ * The building inside the plan image, with a small margin. The drawing has wide empty margins, so fitting
+ * and panning use this box instead of the whole image: the building fills the screen.
+ */
+export const BOX = (() => {
+  const m = 28
+  const xs = ROOMS.flatMap((r) => r.polygon.map((p) => p[0]))
+  const ys = ROOMS.flatMap((r) => r.polygon.map((p) => p[1]))
+  const x = Math.max(0, Math.min(...xs) - m)
+  const y = Math.max(0, Math.min(...ys) - m)
+  return { x, y, w: Math.min(PLAN.width, Math.max(...xs) + m) - x, h: Math.min(PLAN.height, Math.max(...ys) + m) - y }
+})()
+
+/** Offsets that centre the building box at scale `s`. */
+const centred = (s: number, { w, h }: ViewportSize): PlanView => ({
+  s,
+  x: (w - BOX.w * s) / 2 - BOX.x * s,
+  y: (h - BOX.h * s) / 2 - BOX.y * s,
+})
+
+function fitView(size: ViewportSize): PlanView {
+  return centred(Math.min((size.w - FIT_PAD * 2) / BOX.w, (size.h - FIT_PAD * 2) / BOX.h), size)
 }
 
 const FILL_BELOW = 600
@@ -27,9 +46,9 @@ const FILL_BELOW = 600
 function initialView(size: ViewportSize): PlanView {
   const fit = fitView(size)
   if (size.w >= FILL_BELOW) return fit
-  const fill = Math.min(fit.s * PLAN.maxZoom, (size.h - FIT_PAD * 2) / PLAN.height)
+  const fill = Math.min(fit.s * PLAN.maxZoom, (size.h - FIT_PAD * 2) / BOX.h)
   if (fill <= fit.s) return fit
-  return clampView({ s: fill, x: (size.w - PLAN.width * fill) / 2, y: (size.h - PLAN.height * fill) / 2 }, size)
+  return clampView(centred(fill, size), size)
 }
 
 function clampAxis(offset: number, content: number, viewport: number) {
@@ -40,8 +59,8 @@ function clampAxis(offset: number, content: number, viewport: number) {
 function clampView(view: PlanView, size: ViewportSize): PlanView {
   const fit = fitView(size).s
   const s = Math.min(fit * PLAN.maxZoom, Math.max(fit, view.s))
-  const x = clampAxis(view.x, PLAN.width * s, size.w)
-  const y = clampAxis(view.y, PLAN.height * s, size.h)
+  const x = clampAxis(view.x + BOX.x * s, BOX.w * s, size.w) - BOX.x * s
+  const y = clampAxis(view.y + BOX.y * s, BOX.h * s, size.h) - BOX.y * s
   return { s, x, y }
 }
 

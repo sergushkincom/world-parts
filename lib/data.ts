@@ -355,7 +355,7 @@ export const PLAN = {
   imageSrc: "/floor-plan.png",
   width: 1672,
   height: 941,
-  maxWidth: 1280,
+  maxWidth: 1760,
   /** Furthest zoom-in, relative to the fit-the-whole-plan scale. */
   maxZoom: 5,
   minimapWidth: 180,

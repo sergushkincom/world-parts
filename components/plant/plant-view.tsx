@@ -6,6 +6,7 @@ import { getRoom, inventoryHits, isSearchable, searchPlant, type SearchOption } 
 import { navigate } from "@/hooks/use-hash-route"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { FloorPlan } from "@/components/plant/floor-plan"
+import { BOX } from "@/components/plant/plan-viewport"
 import { PlantSearch } from "@/components/plant/plant-search"
 import { RoomNote } from "@/components/plant/room-note"
 import { ViewSwitch } from "@/components/parts/view-switch"
@@ -87,8 +88,15 @@ export function PlantView({ q, pin = null }: { q: string; pin?: RoomId | null })
       </header>
 
       <main className="relative min-h-0 flex-1">
-        <div className="mx-auto size-full" style={{ maxWidth: PLAN.maxWidth }}>
-          <FloorPlan hits={hitRooms} focusRoom={noteRoom} onRoom={openRoom} />
+        {/* From 600 px the blueprint card hugs the building: as wide as fits, height from the building's shape.
+            Narrower, it fills the area and opens zoomed to the height (see PlanViewport). */}
+        <div className="mx-auto flex size-full items-center justify-center px-3 pb-3 [container-type:size]" style={{ maxWidth: PLAN.maxWidth }}>
+          <div
+            className="size-full min-[600px]:h-auto min-[600px]:w-[min(100cqw,calc(100cqh*var(--plan-ratio)))] min-[600px]:aspect-(--plan-ratio)"
+            style={{ "--plan-ratio": BOX.w / BOX.h } as React.CSSProperties}
+          >
+            <FloorPlan hits={hitRooms} focusRoom={noteRoom} onRoom={openRoom} />
+          </div>
         </div>
 
         {noteRoom && (

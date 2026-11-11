@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PlanViewport, type PlanView, type ViewportSize } from "@/components/plant/plan-viewport"
 
+/** The plan split into walls and furniture (white on transparent, same size as the plan); shared with the room minimap. */
+export const BLUEPRINT = { walls: "/minimap/plan-walls.webp", furniture: "/minimap/plan-furniture.webp" }
+
 export const planPoints = (polygon: Point[]) => polygon.map((p) => p.join(",")).join(" ")
 
 export function PlanPin() {
@@ -22,8 +25,8 @@ const PIN_H = 26
 const PIN_GAP = 4
 const DOT = 24
 
-export type Rect = { left: number; top: number; right: number; bottom: number }
-export type PinLayout = { room: Room; mode: "label" | "dot"; left: number; top: number }
+type Rect = { left: number; top: number; right: number; bottom: number }
+type PinLayout = { room: Room; mode: "label" | "dot"; left: number; top: number }
 
 const overlaps = (a: Rect, b: Rect) =>
   a.left < b.right + PIN_GAP && b.left < a.right + PIN_GAP && a.top < b.bottom + PIN_GAP && b.top < a.bottom + PIN_GAP
@@ -35,22 +38,18 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * overlap one already placed, or can't fit the viewport width, collapses to a dot. Rooms whose
  * anchor is panned out of view get no pin.
  */
-export function layoutPins(
+function layoutPins(
   view: PlanView,
   size: ViewportSize,
   widths: Partial<Record<RoomId, number>>,
   hits: Set<RoomId> | null,
   focusRoom: RoomId | null,
-  anchorOf: (room: Room) => Point = (room) => room.anchor,
-  /** Screen rects no label may cover (e.g. the room you're standing in, on the minimap). */
-  obstacles: Rect[] = [],
 ): PinLayout[] {
   const rank = (r: Room) => (r.id === focusRoom ? 0 : hits?.has(r.id) ? 1 : r.scanned ? 2 : 3)
   const ordered = ROOMS.map((room, i) => ({ room, i })).sort((a, b) => rank(a.room) - rank(b.room) || a.i - b.i)
   const visible = ordered.flatMap(({ room }) => {
-    const [px, py] = anchorOf(room)
-    const ax = view.x + px * view.s
-    const ay = view.y + py * view.s
+    const ax = view.x + room.anchor[0] * view.s
+    const ay = view.y + room.anchor[1] * view.s
     if (ax < 0 || ax > size.w || ay < 0 || ay > size.h) return []
     const left = clamp(ax - DOT / 2, EDGE, size.w - EDGE - DOT)
     const top = clamp(ay - DOT / 2, EDGE, size.h - EDGE - DOT)
@@ -62,7 +61,7 @@ export function layoutPins(
   const out: PinLayout[] = []
   for (const { room, ax, ay, dot } of visible) {
     const w = widths[room.id]
-    const blockers = [...obstacles, ...placed, ...visible.filter((v) => v.room.id !== room.id).map((v) => v.dot)]
+    const blockers = [...placed, ...visible.filter((v) => v.room.id !== room.id).map((v) => v.dot)]
     const spot =
       w !== undefined && w <= size.w - EDGE * 2
         ? [ay - PIN_H / 2, ay - PIN_H - DOT / 2, ay + DOT / 2]
@@ -83,7 +82,7 @@ export function layoutPins(
   return out
 }
 
-export function PinContent({ room, lit }: { room: Room; lit: boolean }) {
+function PinContent({ room, lit }: { room: Room; lit: boolean }) {
   const status = room.scanned ? "scanned" : "not scanned"
   return (
     <>
@@ -104,7 +103,7 @@ export function PinContent({ room, lit }: { room: Room; lit: boolean }) {
   )
 }
 
-export const LABEL_CLASS =
+const LABEL_CLASS =
   "flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-card/90 px-2 py-1 text-label font-medium shadow-sm backdrop-blur-sm"
 
 /**
@@ -121,18 +120,45 @@ export function FloorPlan({
   onRoom: (room: Room) => void
 }) {
   const [hovered, setHovered] = React.useState<RoomId | null>(null)
-  const [widths, measurer] = usePinWidths(hits)
+  const [widths, setWidths] = React.useState<Partial<Record<RoomId, number>>>({})
+  const measureRef = React.useRef<HTMLDivElement>(null)
+
+  React.useLayoutEffect(() => {
+    const el = measureRef.current
+    if (!el) return
+    const measure = () => {
+      const next: Partial<Record<RoomId, number>> = {}
+      el.querySelectorAll<HTMLElement>("[data-measure]").forEach((n) => {
+        next[n.dataset.measure as RoomId] = Math.ceil(n.getBoundingClientRect().width)
+      })
+      setWidths(next)
+    }
+    measure()
+    document.fonts?.ready.then(measure)
+  }, [hits])
 
   const layer = (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element -- static plan, needs a CSS filter and exact pixel mapping */}
+      {/* Blueprint: faint grid, then the plan split into furniture and walls (white on transparent) at two weights. */}
+      <div aria-hidden className="blueprint-grid absolute inset-0" />
+      {/* eslint-disable-next-line @next/next/no-img-element -- static plan layers, exact pixel mapping */}
       <img
-        src={PLAN.imageSrc}
+        src={BLUEPRINT.furniture}
+        alt=""
+        aria-hidden
+        width={PLAN.width}
+        height={PLAN.height}
+        draggable={false}
+        className="absolute inset-0 size-full opacity-[0.43] select-none"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element -- static plan layers, exact pixel mapping */}
+      <img
+        src={BLUEPRINT.walls}
         alt={PLAN.alt}
         width={PLAN.width}
         height={PLAN.height}
         draggable={false}
-        className="plan-invert absolute inset-0 size-full select-none"
+        className="absolute inset-0 size-full opacity-[0.92] select-none"
       />
       <svg viewBox={`0 0 ${PLAN.width} ${PLAN.height}`} aria-hidden className="absolute inset-0 size-full">
         {ROOMS.map((room) => {
@@ -151,10 +177,11 @@ export function FloorPlan({
               onClick={() => onRoom(room)}
               className={cn(
                 "motion-transition cursor-pointer fill-transparent stroke-transparent transition-[fill,stroke] duration-200",
-                hovered === room.id && "fill-foreground/5 stroke-foreground/40",
+                room.scanned && "fill-blueprint-active/8 stroke-blueprint-active/60",
+                hovered === room.id && "fill-white/8 stroke-white/50",
                 lit && "fill-status-active/10 stroke-status-active/70",
                 focused && "fill-status-active/20 stroke-status-active",
-                dim && "fill-background/60",
+                dim && "fill-blueprint/60",
               )}
             />
           )
@@ -225,42 +252,14 @@ export function FloorPlan({
 
   return (
     <>
-      <PlanViewport layer={layer} overlay={overlay} />
-      {measurer}
+      <PlanViewport layer={layer} overlay={overlay} className="rounded-xl bg-blueprint" />
+      <div ref={measureRef} aria-hidden className="pointer-events-none invisible fixed top-0 left-0 flex flex-col items-start">
+        {ROOMS.map((room) => (
+          <span key={room.id} data-measure={room.id} className={LABEL_CLASS}>
+            <PinContent room={room} lit={hits?.has(room.id) ?? false} />
+          </span>
+        ))}
+      </div>
     </>
   )
-}
-
-/**
- * Room pill widths in CSS px, measured from an invisible copy of every pill, so `layoutPins` can tell which
- * labels fit. Returns the widths and the measuring element to render once.
- */
-export function usePinWidths(hits: Set<RoomId> | null) {
-  const [widths, setWidths] = React.useState<Partial<Record<RoomId, number>>>({})
-  const measureRef = React.useRef<HTMLDivElement>(null)
-
-  React.useLayoutEffect(() => {
-    const el = measureRef.current
-    if (!el) return
-    const measure = () => {
-      const next: Partial<Record<RoomId, number>> = {}
-      el.querySelectorAll<HTMLElement>("[data-measure]").forEach((n) => {
-        next[n.dataset.measure as RoomId] = Math.ceil(n.getBoundingClientRect().width)
-      })
-      setWidths(next)
-    }
-    measure()
-    document.fonts?.ready.then(measure)
-  }, [hits])
-
-  const measurer = (
-    <div ref={measureRef} aria-hidden className="pointer-events-none invisible fixed top-0 left-0 flex flex-col items-start">
-      {ROOMS.map((room) => (
-        <span key={room.id} data-measure={room.id} className={LABEL_CLASS}>
-          <PinContent room={room} lit={hits?.has(room.id) ?? false} />
-        </span>
-      ))}
-    </div>
-  )
-  return [widths, measurer] as const
 }
