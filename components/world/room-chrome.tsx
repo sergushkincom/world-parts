@@ -4,9 +4,11 @@ import * as React from "react"
 import { SearchIcon } from "lucide-react"
 import { ROOMS, type RoomId } from "@/lib/data"
 import { cn } from "@/lib/utils"
+import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { RoomMinimap, type MinimapHandle } from "@/components/world/room-minimap"
 import { RoomBreadcrumb } from "@/components/world/room-nav"
 import { RoomSearch } from "@/components/world/room-search"
+import { ShortcutHint } from "@/components/world/shortcut-hint"
 import { ShortcutsPanel } from "@/components/world/shortcuts-panel"
 import { ViewPill } from "@/components/world/view-pill"
 import type { SplatQuality } from "@/lib/splat-quality"
@@ -30,6 +32,8 @@ export function RoomChrome({
   onViewpoint,
   find,
   onNotify,
+  hintBlocked,
+  onResetOrbit,
 }: {
   roomId: RoomId
   q: string
@@ -46,10 +50,19 @@ export function RoomChrome({
   onViewpoint: (index: number) => void
   find: { name: string; at: Point } | null
   onNotify: (message: string) => void
+  /** Link-copied toast is using the chip slot. */
+  hintBlocked: boolean
+  onResetOrbit: () => void
 }) {
   const roomName = ROOMS.find((r) => r.id === roomId)?.name ?? "Room"
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false)
+  const { touch, tipsOff, setGate } = useShortcutLearning()
+  const orbitVisible = showOrbitHint && !touch && !tipsOff
+
+  React.useEffect(() => {
+    setGate({ paused: orbitVisible || shortcutsOpen || hintBlocked, coachGestures: live })
+  }, [orbitVisible, shortcutsOpen, hintBlocked, live, setGate])
 
   return (
     <>
@@ -106,11 +119,12 @@ export function RoomChrome({
         />
       </div>
 
-      {showOrbitHint && (
+      {orbitVisible && (
         <p className="pointer-events-none absolute bottom-[max(4.25rem,calc(env(safe-area-inset-bottom)+3.5rem))] left-1/2 z-30 max-w-[calc(100%-6rem)] -translate-x-1/2 rounded-full bg-black/75 px-3 py-1.5 text-center text-label text-scene-ink shadow-lg backdrop-blur-sm">
           Drag to orbit · scroll to zoom · ? all shortcuts
         </p>
       )}
+      <ShortcutHint />
 
       <ViewPill
         mode={mode}
@@ -121,7 +135,7 @@ export function RoomChrome({
         onNotify={onNotify}
         onOpenShortcuts={() => setShortcutsOpen(true)}
       />
-      <ShortcutsPanel open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <ShortcutsPanel open={shortcutsOpen} onOpenChange={setShortcutsOpen} onResetOrbit={onResetOrbit} />
     </>
   )
 }

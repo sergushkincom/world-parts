@@ -195,6 +195,8 @@ export const STORAGE_KEYS = {
   /** First-visit orbit hint, dismissed after the first drag. */
   orbitHintSeen: "world-parts.orbit-hint-seen.v1",
   splatQuality: "world-parts.splat-quality.v1",
+  /** Learned keys, seen gestures, and whether tips are muted. Shape version is inside the JSON. */
+  shortcutLearning: "world-parts.shortcut-learning.v1",
 } as const
 
 /** Grey steel cabinet on the back wall, right of the pegboard; the bench covers its lower right. */

@@ -3,6 +3,7 @@
 import * as React from "react"
 import { EllipsisIcon, InfoIcon, KeyboardIcon, LinkIcon, RotateCcwIcon } from "lucide-react"
 import { copyText } from "@/lib/clipboard"
+import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { SPLAT_QUALITIES, type SplatQuality } from "@/lib/splat-quality"
 import { cn } from "@/lib/utils"
 import {
@@ -71,6 +72,7 @@ export function ViewPill({
   onOpenShortcuts: () => void
 }) {
   const [about, setAbout] = React.useState(false)
+  const { notePointer } = useShortcutLearning()
 
   const shareRoom = async () => {
     const ok = await copyText(window.location.href)
@@ -128,7 +130,10 @@ export function ViewPill({
             className={seg}
             aria-label="Reset view"
             aria-keyshortcuts="R"
-            onClick={onReset}
+            onClick={(event) => {
+              if (activatedByPointer(event)) notePointer("reset")
+              onReset()
+            }}
           >
             <RotateCcwIcon aria-hidden className="size-4" />
             <span className="sr-only">Reset</span>

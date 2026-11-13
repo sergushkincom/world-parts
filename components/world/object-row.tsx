@@ -5,6 +5,7 @@ import { CrosshairIcon, MoreHorizontalIcon, PackageIcon, PencilIcon, RotateCwIco
 import { OBJECT_PALETTE, TIMING, type WorldObject } from "@/lib/data"
 import { formatCount } from "@/lib/geometry"
 import { cn } from "@/lib/utils"
+import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { DRAWABLE, useWorld, type SelectMode } from "@/components/world/world-provider"
 import { StatusBadge } from "@/components/world/status-badge"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ function metaLine(o: WorldObject) {
 
 export function ObjectRow({ object: o }: { object: WorldObject }) {
   const { state, select, setActive, hover, frame, rename, remove, retry, registerRow, focusRow, openCard } = useWorld()
+  const { notePointer, noteKey } = useShortcutLearning()
   const [editing, setEditing] = React.useState(false)
   const openRenameRef = React.useRef(false)
   const selected = state.selection.includes(o.id)
@@ -74,6 +76,7 @@ export function ObjectRow({ object: o }: { object: WorldObject }) {
         onClick={(e) => {
           e.preventDefault()
           select(o.id, e.shiftKey ? "range" : "toggle")
+          if (activatedByPointer(e)) notePointer(e.shiftKey ? "extend" : "toggle")
         }}
       />
       <span
@@ -119,24 +122,35 @@ export function ObjectRow({ object: o }: { object: WorldObject }) {
           aria-keyshortcuts="Space Enter F F2 Delete"
           className="flex min-w-0 flex-1 flex-col items-start gap-0.5 rounded-sm text-left outline-offset-4"
           onFocus={() => setActive(o.id)}
-          onClick={(e) => select(o.id, modeFrom(e))}
-          onDoubleClick={() => drawable && doFrame()}
+          onClick={(e) => {
+            select(o.id, modeFrom(e))
+            if (activatedByPointer(e) && e.shiftKey) notePointer("extend")
+          }}
+          onDoubleClick={(e) => {
+            if (!drawable) return
+            doFrame()
+            if (activatedByPointer(e)) notePointer("frame")
+          }}
           onKeyDown={(e) => {
             if (e.key === " ") {
               e.preventDefault()
               select(o.id, e.shiftKey ? "range" : "toggle")
+              noteKey(e.shiftKey ? "extend" : "toggle")
             } else if (e.key === "Enter") {
               e.preventDefault()
               select(o.id, modeFrom(e))
             } else if ((e.key === "f" || e.key === "F") && drawable) {
               e.preventDefault()
               doFrame()
+              noteKey("frame")
             } else if (e.key === "F2") {
               e.preventDefault()
               setEditing(true)
+              noteKey("rename")
             } else if (e.key === "Delete" || e.key === "Backspace") {
               e.preventDefault()
               remove(o.id)
+              noteKey("remove")
             }
           }}
         >
@@ -196,7 +210,13 @@ export function ObjectRow({ object: o }: { object: WorldObject }) {
           }}
         >
           <DropdownMenuGroup>
-            <DropdownMenuItem disabled={!drawable} onSelect={doFrame}>
+            <DropdownMenuItem
+              disabled={!drawable}
+              onSelect={() => {
+                doFrame()
+                notePointer("frame")
+              }}
+            >
               <CrosshairIcon aria-hidden />
               Frame
               <DropdownMenuShortcut>F</DropdownMenuShortcut>
@@ -218,7 +238,13 @@ export function ObjectRow({ object: o }: { object: WorldObject }) {
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem variant="destructive" onSelect={() => remove(o.id)}>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => {
+                remove(o.id)
+                notePointer("remove")
+              }}
+            >
               <Trash2Icon aria-hidden />
               Remove
               <DropdownMenuShortcut>Del</DropdownMenuShortcut>

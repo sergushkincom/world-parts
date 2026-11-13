@@ -23,6 +23,8 @@ import {
 import { CameraControls } from "playcanvas/scripts/esm/camera-controls.mjs"
 import { STILL_PROJECT_GLSL } from "@/lib/splat-mask"
 import type { CameraView } from "@/lib/minimap"
+import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
+import { createGestureTracker, trackGesture, type GestureId } from "@/lib/shortcut-learning"
 
 export type CameraPose = { position: [number, number, number]; target: [number, number, number] }
 
@@ -99,6 +101,11 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   ref,
 ) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
+  const { noteKey, noteGesture } = useShortcutLearning()
+  const noteKeyRef = React.useRef(noteKey)
+  const noteGestureRef = React.useRef(noteGesture)
+  noteKeyRef.current = noteKey
+  noteGestureRef.current = noteGesture
   const controlsRef = React.useRef<CameraControls | null>(null)
   const cameraRef = React.useRef<Entity | null>(null)
   const splatRef = React.useRef<Entity | null>(null)
@@ -267,6 +274,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       if (e.key === "r" || e.key === "R") {
         e.preventDefault()
         controls.reset(v(homeRef.current.target), v(homeRef.current.position))
+        noteKeyRef.current("reset")
       }
     }
     window.addEventListener("keydown", onKey)
@@ -286,6 +294,35 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the app is created once per src
   }, [src])
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const tracker = createGestureTracker()
+    const onPointer = (phase: "down" | "move" | "up") => (event: PointerEvent) => {
+      const gesture: GestureId | null = trackGesture(tracker, {
+        phase,
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        x: event.clientX,
+        y: event.clientY,
+      })
+      if (gesture) noteGestureRef.current(gesture)
+    }
+    const down = onPointer("down")
+    const move = onPointer("move")
+    const up = onPointer("up")
+    canvas.addEventListener("pointerdown", down)
+    canvas.addEventListener("pointermove", move)
+    canvas.addEventListener("pointerup", up)
+    canvas.addEventListener("pointercancel", up)
+    return () => {
+      canvas.removeEventListener("pointerdown", down)
+      canvas.removeEventListener("pointermove", move)
+      canvas.removeEventListener("pointerup", up)
+      canvas.removeEventListener("pointercancel", up)
+    }
+  }, [])
 
   React.useEffect(() => {
     const app = appRef.current

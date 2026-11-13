@@ -1,6 +1,7 @@
 "use client"
 
 import { COPY, GAUSSIAN_VIEWS, type GaussianView } from "@/lib/data"
+import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { useWorld } from "@/components/world/world-provider"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -8,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 export function GaussianViewControl() {
   const { state } = useWorld()
   const { setView } = useWorld()
+  const { notePointer } = useShortcutLearning()
   const count = state.selection.length
   const disabled = count === 0
   const current = GAUSSIAN_VIEWS.find((v) => v.id === state.gaussianView)
@@ -44,6 +46,9 @@ export function GaussianViewControl() {
                 aria-label={v.fullLabel}
                 aria-keyshortcuts={v.key}
                 className="h-8 min-w-0 flex-1 gap-1.5 px-1.5 text-xs whitespace-nowrap"
+                onClick={(event) => {
+                  if (activatedByPointer(event)) notePointer(v.id)
+                }}
               >
                 {v.label}
                 <span aria-hidden className="text-[0.625rem] text-muted-foreground tabular-nums">

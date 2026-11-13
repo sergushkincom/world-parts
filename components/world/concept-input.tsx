@@ -6,6 +6,7 @@ import { COPY, SUGGESTED_CONCEPTS } from "@/lib/data"
 import { isSearchable, type WorldHit } from "@/lib/search"
 import { cn } from "@/lib/utils"
 import { useWorldHits } from "@/hooks/use-world-hits"
+import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { WorldHitOption } from "@/components/search/world-hit-option"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ const optionId = (hit: WorldHit) => `${LISTBOX_ID}-${hit.object.id}`
 
 export function ConceptInput() {
   const { state, setDraft, segmentDraft, submitConcept, select, frame, openCard } = useWorld()
+  const { notePointer } = useShortcutLearning()
   const [open, setOpen] = React.useState(false)
   const [activeIndex, setActiveIndex] = React.useState(-1)
   const hits = useWorldHits(state.draft)
@@ -99,7 +101,14 @@ export function ConceptInput() {
             aria-invalid={state.notice?.tone === "error" || undefined}
             aria-describedby={hintId}
           />
-          <Button type="submit" disabled={offline || !state.draft.trim()} aria-keyshortcuts="g">
+          <Button
+            type="submit"
+            disabled={offline || !state.draft.trim()}
+            aria-keyshortcuts="g"
+            onClick={(event) => {
+              if (activatedByPointer(event)) notePointer("go")
+            }}
+          >
             {COPY.segmentButton}
             <Kbd aria-hidden className="bg-primary-foreground/15 text-primary-foreground max-panel:hidden">
               G

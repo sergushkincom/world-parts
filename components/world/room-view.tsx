@@ -6,6 +6,7 @@ import { planMapper } from "@/lib/minimap"
 import { readJSON, writeJSON } from "@/lib/storage"
 import { isSplatQuality, pixelRatioFor, type SplatQuality } from "@/lib/splat-quality"
 import { navigate } from "@/hooks/use-hash-route"
+import { ShortcutLearningProvider, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { useWorldShortcuts } from "@/hooks/use-world-shortcuts"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { ObjectCard } from "@/components/world/object-card"
@@ -67,7 +68,11 @@ function useStoredFlag(key: string) {
     setSeen(true)
     writeJSON(key, true)
   }, [key])
-  return [seen, mark] as const
+  const clear = React.useCallback(() => {
+    setSeen(false)
+    writeJSON(key, false)
+  }, [key])
+  return [seen, mark, clear] as const
 }
 
 function useSplatQuality() {
@@ -84,7 +89,16 @@ function useSplatQuality() {
 }
 
 export function RoomView({ route }: { route: RoomRoute }) {
+  return (
+    <ShortcutLearningProvider>
+      <RoomViewBody route={route} />
+    </ShortcutLearningProvider>
+  )
+}
+
+function RoomViewBody({ route }: { route: RoomRoute }) {
   useWorldShortcuts({ onEscapeRoot: () => navigate({ level: "plant", q: route.q }) })
+  const { noteKey } = useShortcutLearning()
   useObjectInHash(route)
   const [mode, setMode] = React.useState<ViewMode>("still")
   const { state, frame } = useWorld()
@@ -93,7 +107,7 @@ export function RoomView({ route }: { route: RoomRoute }) {
   const [liveReady, setLiveReady] = React.useState(false)
   const [viewpoint, setViewpoint] = React.useState<number | null>(null)
   const [visited, setVisited] = React.useState<number[]>([])
-  const [orbitHintSeen, dismissOrbitHint] = useStoredFlag(STORAGE_KEYS.orbitHintSeen)
+  const [orbitHintSeen, dismissOrbitHint, clearOrbitHint] = useStoredFlag(STORAGE_KEYS.orbitHintSeen)
   const [quality, setQuality] = useSplatQuality()
   const [toast, setToast] = React.useState<string | null>(null)
   const toastTimer = React.useRef(0)
@@ -114,10 +128,11 @@ export function RoomView({ route }: { route: RoomRoute }) {
       if (e.key !== "r" && e.key !== "R") return
       e.preventDefault()
       frame(null)
+      noteKey("reset")
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [mode, frame])
+  }, [mode, frame, noteKey])
 
   // Find takes over the camera; the walk starts again from wherever Find left it.
   React.useEffect(() => setViewpoint(null), [state.framedId, mode])
@@ -155,6 +170,8 @@ export function RoomView({ route }: { route: RoomRoute }) {
           onViewpoint={walkTo}
           find={find}
           onNotify={notify}
+          hintBlocked={toast !== null}
+          onResetOrbit={clearOrbitHint}
         />
         {mode === "live" ? (
           <SplatView
