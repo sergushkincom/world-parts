@@ -50,7 +50,7 @@ export const SCENE = {
 
 /**
  * Live 3D: the same SpAItial world as the still frame, exported as SOG.
- * Hosted outside git; NEXT_PUBLIC_SPLAT_URL points at it. Camera poses are measured by hand in the viewer.
+ * Committed in public/splats; NEXT_PUBLIC_SPLAT_URL can point at another world. Camera poses are measured by hand in the viewer.
  */
 export const LIVE_WORLD = {
   src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
