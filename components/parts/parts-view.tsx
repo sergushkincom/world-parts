@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { PackageSearchIcon, SearchIcon, TriangleAlertIcon, XIcon } from "lucide-react"
-import { COPY, PARTS, PARTS_SUMMARY, WORLD_ROOM, ROOMS } from "@/lib/data"
+import { COPY, PARTS, PARTS_SUMMARY, ROOMS } from "@/lib/data"
 import { validateParts } from "@/lib/parts"
 import { PART_FILTERS, matchesQuery, sortParts, type PartFilter, type Sort, type SortKey } from "@/lib/parts-list"
 import { navigate } from "@/hooks/use-hash-route"
@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const subscribeNoop = () => () => {}
-const roomName = ROOMS.find((r) => r.id === WORLD_ROOM)?.name ?? WORLD_ROOM
+const scannedRooms = ROOMS.filter((r) => r.scanned).map((r) => r.name.toLowerCase()).join(", ")
 
 /** Level 0: the start screen. Every part, where it is, and whether to worry about it. */
 export function PartsView({ q, part }: { q: string; part: string | null }) {
@@ -139,7 +139,7 @@ export function PartsView({ q, part }: { q: string; part: string | null }) {
                 key={f.id}
                 value={f.id}
                 disabled={counts[f.id] === 0 && filter !== f.id}
-                title={f.id === "room" ? `Stored or installed in the scanned ${roomName}` : undefined}
+                title={f.id === "room" ? `Stored or installed in a scanned room: ${scannedRooms}` : undefined}
                 className="gap-1.5 px-2.5"
               >
                 {f.label}

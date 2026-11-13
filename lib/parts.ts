@@ -46,9 +46,15 @@ export function isInWorld(l: StoredLocation) {
   return getRoom(locationRoom(l)).scanned
 }
 
-/** "cabinet B3", "rack R2, shelf 3", "line 2, machine 4". */
+/** "cabinet B3", "rack R2, shelf 3", "crate 2", "inbound pallet, door 2". */
 export function placeLabel(l: StoredLocation, { shelf = true } = {}) {
-  if (isBin(l)) return `${getEquipment(l.assetId)?.concept ?? l.assetId} ${l.bin}`
+  if (isBin(l)) {
+    const concept = getEquipment(l.assetId)?.concept ?? l.assetId
+    // Racks: the bin is a shelf ("rack R2, shelf 3"). Crates name their own bins ("crate 2").
+    if (concept === "rack") return shelf ? `rack ${l.assetId}, shelf ${l.bin.replace(/^S/, "")}` : `rack ${l.assetId}`
+    if (l.bin.startsWith(concept)) return l.bin
+    return `${concept} ${l.bin}`
+  }
   if ("rack" in l) return shelf ? `rack ${l.rack}, shelf ${l.shelf}` : `rack ${l.rack}`
   return l.location
 }
