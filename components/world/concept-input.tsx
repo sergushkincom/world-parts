@@ -17,7 +17,7 @@ const LISTBOX_ID = "room-results"
 const optionId = (hit: WorldHit) => `${LISTBOX_ID}-${hit.object.id}`
 
 export function ConceptInput() {
-  const { state, conceptInputRef, setDraft, segmentDraft, submitConcept, select, frame, openCard } = useWorld()
+  const { state, setDraft, segmentDraft, submitConcept, select, frame, openCard } = useWorld()
   const [open, setOpen] = React.useState(false)
   const [activeIndex, setActiveIndex] = React.useState(-1)
   const hits = useWorldHits(state.draft)
@@ -66,13 +66,11 @@ export function ConceptInput() {
           <Input
             className="min-w-0 flex-1"
             id="concept-input"
-            ref={conceptInputRef}
             role="combobox"
             aria-expanded={showResults}
             aria-controls={LISTBOX_ID}
             aria-autocomplete="list"
             aria-activedescendant={showResults && active ? optionId(active) : undefined}
-            aria-keyshortcuts="/"
             value={state.draft}
             onChange={(e) => {
               setDraft(e.target.value)

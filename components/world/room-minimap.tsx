@@ -1,11 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { ArrowLeftIcon, GripVerticalIcon, MapIcon, Minimize2Icon, MinusIcon, PlusIcon } from "lucide-react"
-import { COPY, PLAN, ROOMS, STORAGE_KEYS, VIEWPOINTS, type Point, type RoomId } from "@/lib/data"
+import { GripVerticalIcon, MapIcon, Minimize2Icon, MinusIcon, PlusIcon, XIcon } from "lucide-react"
+import { PLAN, ROOMS, STORAGE_KEYS, VIEWPOINTS, type Point, type RoomId } from "@/lib/data"
 import { conePath, planMapper, roomViewBox, STILL_VIEW, zoomedPlanViewBox, type CameraView } from "@/lib/minimap"
 import { readJSON, writeJSON } from "@/lib/storage"
-import { navigate } from "@/hooks/use-hash-route"
 import { cn } from "@/lib/utils"
 import { BLUEPRINT, planPoints } from "@/components/plant/floor-plan"
 
@@ -13,7 +12,6 @@ export type MinimapHandle = { setCamera: (view: CameraView) => void }
 
 type Props = {
   roomId: RoomId
-  q: string
   /** Live 3D with the world loaded: the cone follows the camera and viewpoints can be walked to. */
   live: boolean
   /** Viewpoint index the camera last walked to, if any. */
@@ -33,10 +31,10 @@ const WIDE_QUERY = "(min-width: 900px)"
 
 /**
  * Plan drawing width in CSS px. M is the original wide card (260px with padding); S and L are the other presets.
- * The phone card stays `NARROW_PLAN` (112px with padding) — drag and collapse only, no presets or zoom.
+ * On the phone the plan opens from a round button as a fixed card (`NARROW_PLAN`): no drag, presets or zoom.
  */
 const PLAN_WIDTH = { S: 160, M: 240, L: 320 } as const
-const NARROW_PLAN = 96
+const NARROW_PLAN = 240
 const WIDE_CHROME = 20
 
 const SIZES = ["S", "M", "L"] as const
@@ -47,8 +45,8 @@ const SIZE_NAME: Record<SizeId, string> = { S: "Small", M: "Medium", L: "Large" 
 const ZOOMS = [1, 1.5, 2, 2.5] as const
 type Zoom = (typeof ZOOMS)[number]
 
-/** Default corner: the old `top-14 left-3`. */
-const DEFAULT_LAYOUT = { x: 12, y: 56, size: "M" as SizeId, zoom: 1 as Zoom, collapsed: false }
+/** Default corner: left of the room view, under the breadcrumb (`top-[4.25rem] left-3`). */
+const DEFAULT_LAYOUT = { x: 12, y: 68, size: "M" as SizeId, zoom: 1 as Zoom, collapsed: false }
 
 type MinimapLayout = { x: number; y: number; size: SizeId; zoom: Zoom; collapsed: boolean }
 
@@ -110,17 +108,20 @@ const iconBtn =
 
 /**
  * The floor plan as a blueprint card in the room. Desktop shows the whole building (where the room sits in
- * the plant) and can be dragged, resized and zoomed; the phone keeps the small room crop and can be dragged
- * or collapsed. A dot is where the camera stands, a cone where it looks. Viewpoints are rings; click one to walk there.
+ * the plant) and can be dragged, resized, zoomed and collapsed; the phone opens the room crop from a round
+ * button. The breadcrumb is the way back to the plant, not this card. A dot is where the camera stands, a cone where it looks. Viewpoints are rings; click one to walk there.
  */
 export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomMinimap(
-  { roomId, q, live, viewpoint, visited, onViewpoint, find },
+  { roomId, live, viewpoint, visited, onViewpoint, find },
   ref,
 ) {
   const room = ROOMS.find((r) => r.id === roomId)
   const map = React.useMemo(() => planMapper(roomId), [roomId])
   const wide = useWide()
   const id = React.useId().replace(/:/g, "")
+  const [open, setOpen] = React.useState(false)
+  const narrowRef = React.useRef<HTMLDivElement>(null)
+  const openButtonRef = React.useRef<HTMLButtonElement>(null)
 
   const [layout, setLayout] = React.useState<MinimapLayout>(DEFAULT_LAYOUT)
   const layoutRef = React.useRef(layout)
@@ -205,7 +206,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   // The still frame never moves: draw it once. Live 3D takes over through setCamera every frame.
   React.useLayoutEffect(() => {
     if (!live && !layout.collapsed) place(STILL_VIEW)
-  }, [live, place, wide, layout.collapsed])
+  }, [live, place, wide, layout.collapsed, open])
 
   const resetPosition = React.useCallback(() => {
     moveTo(DEFAULT_LAYOUT.x, DEFAULT_LAYOUT.y)
@@ -269,6 +270,31 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     e.currentTarget.querySelector<HTMLButtonElement>(`[data-size="${next}"]`)?.focus()
   }
 
+  const close = React.useCallback(() => {
+    setOpen(false)
+    requestAnimationFrame(() => openButtonRef.current?.focus())
+  }, [])
+
+  React.useEffect(() => {
+    if (wide || !open) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return
+      if (document.querySelector("[role='menu'], [role='alertdialog'], [role='dialog']")) return
+      e.preventDefault()
+      e.stopPropagation()
+      close()
+    }
+    function onPointer(e: PointerEvent) {
+      if (!narrowRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener("keydown", onKey, true)
+    document.addEventListener("pointerdown", onPointer)
+    return () => {
+      window.removeEventListener("keydown", onKey, true)
+      document.removeEventListener("pointerdown", onPointer)
+    }
+  }, [wide, open, close])
+
   if (!room || !map) return null
 
   const points = (VIEWPOINTS[roomId] ?? []).map((v) => ({ ...v, at: map.toPlan(v.pose.position[0], v.pose.position[2]) }))
@@ -280,12 +306,161 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
       : viewpoint !== null
         ? `LIVE 3D · ${viewpoint + 1}/${points.length}`
         : "LIVE 3D"
-  const back = () => navigate({ level: "plant", q })
   const zoomIndex = Math.max(0, ZOOMS.indexOf(layout.zoom))
   const positionStyle = { background: CARD_BG, left: layout.x, top: layout.y }
   const cardStyle = {
     ...positionStyle,
     ...(wide && layout.size !== "M" ? { width: PLAN_WIDTH[layout.size] + WIDE_CHROME } : {}),
+  }
+
+  const plan = (
+        <svg
+          viewBox={vb.join(" ")}
+          className="block w-full rounded-md"
+          style={{ aspectRatio: `${vb[2]} / ${vb[3]}` }}
+          aria-hidden={points.length === 0 || !live}
+          role={live && points.length ? "group" : undefined}
+          aria-label={live && points.length ? "Viewpoints" : undefined}
+        >
+          <defs>
+            <pattern id={`${id}-grid`} width={50} height={50} patternUnits="userSpaceOnUse">
+              <path d="M50 0H0V50" fill="none" stroke="white" strokeOpacity={0.05} strokeWidth={2} />
+            </pattern>
+            <clipPath id={`${id}-room`}>
+              <polygon points={planPoints(room.polygon)} />
+            </clipPath>
+            <radialGradient ref={gradRef} id={`${id}-cone`} gradientUnits="userSpaceOnUse" r={300}>
+              <stop offset="0" stopColor={ACTIVE} stopOpacity={0.7} />
+              <stop offset="1" stopColor={ACTIVE} stopOpacity={0.1} />
+            </radialGradient>
+          </defs>
+
+          <rect x={vb[0]} y={vb[1]} width={vb[2]} height={vb[3]} fill={`url(#${id}-grid)`} />
+          {/* An SVG image, not <img>: the viewBox crops the plan together with the marks. */}
+          <image href={BLUEPRINT.furniture} width={PLAN.width} height={PLAN.height} opacity={0.43} />
+          <image href={BLUEPRINT.walls} width={PLAN.width} height={PLAN.height} opacity={0.92} />
+          <polygon
+            points={planPoints(room.polygon)}
+            fill={ACTIVE}
+            fillOpacity={0.08}
+            stroke={ACTIVE}
+            strokeOpacity={0.6}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+
+          <g clipPath={`url(#${id}-room)`}>
+            <path ref={coneRef} fill={`url(#${id}-cone)`} stroke={ACTIVE} strokeOpacity={0.8} vectorEffect="non-scaling-stroke" strokeWidth={1} />
+          </g>
+
+          {live && points.length > 1 && (
+            <polyline
+              points={points.map((p) => p.at.join(",")).join(" ")}
+              fill="none"
+              stroke="white"
+              strokeOpacity={0.43}
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {live &&
+            points.map((p, i) =>
+              i === viewpoint ? null : (
+                <g
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Walk to viewpoint ${i + 1} of ${points.length}: ${p.label}`}
+                  className="cursor-pointer outline-none [&:focus-visible>circle:last-child]:stroke-[3]"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onViewpoint(i)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return
+                    e.preventDefault()
+                    onViewpoint(i)
+                  }}
+                >
+                  <title>{p.label}</title>
+                  {/* Bigger invisible target than the ring itself. */}
+                  <circle cx={p.at[0]} cy={p.at[1]} r={12 * k} fill="transparent" />
+                  <circle
+                    cx={p.at[0]}
+                    cy={p.at[1]}
+                    r={4 * k}
+                    fill={visited.includes(i) ? "rgba(255,255,255,0.25)" : "transparent"}
+                    stroke="white"
+                    strokeOpacity={0.75}
+                    strokeWidth={1.5}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </g>
+              ),
+            )}
+
+          {find && (
+            <g transform={`translate(${find.at[0]} ${find.at[1]})`}>
+              <circle r={7 * k} fill="none" stroke="#FFC850" strokeOpacity={0.6} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+              <circle r={4 * k} fill="#FFC850" />
+            </g>
+          )}
+
+          <g ref={dotRef}>
+            <circle r={11 * k} fill={ACTIVE} fillOpacity={0.27} />
+            <circle r={4.5 * k} fill={ACTIVE} stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          </g>
+        </svg>
+  )
+
+  const narrowPlace = "pointer-events-auto absolute top-[calc(4.25rem+env(safe-area-inset-top))] left-3"
+
+  if (!wide) {
+    if (!open) {
+      return (
+        <button
+          ref={openButtonRef}
+          type="button"
+          aria-label="Open floor plan"
+          aria-expanded={false}
+          onClick={() => setOpen(true)}
+          className={cn(
+            narrowPlace,
+            "grid size-11 place-items-center rounded-full text-white shadow-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+          )}
+          style={{ background: CARD_BG }}
+        >
+          <MapIcon aria-hidden className="size-5" />
+        </button>
+      )
+    }
+    return (
+      <div
+        ref={narrowRef}
+        className={cn(
+          narrowPlace,
+          "flex w-[min(15rem,calc(100vw-1.5rem))] flex-col gap-1.5 rounded-xl border border-white/16 p-2.5 text-white shadow-lg",
+        )}
+        style={{ background: CARD_BG }}
+        onPointerDown={blockScenePointer}
+        onWheel={blockScenePointer}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate font-mono text-[10px] tracking-wide text-white/60 uppercase">{mode}</span>
+          <button
+            type="button"
+            aria-label="Close floor plan"
+            onClick={close}
+            className="-mr-1 grid size-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+          >
+            <XIcon aria-hidden className="size-4" />
+          </button>
+        </div>
+        {plan}
+      </div>
+    )
   }
 
   if (layout.collapsed) {
@@ -334,7 +509,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   return (
     <div
       ref={setCard}
-      className="pointer-events-auto absolute z-10 flex w-[260px] touch-none flex-col gap-1.5 rounded-xl border border-white/16 p-2.5 text-white shadow-lg select-none max-panel:w-[112px] max-panel:gap-1 max-panel:rounded-lg max-panel:p-2"
+      className="pointer-events-auto absolute z-10 flex w-[260px] touch-none flex-col gap-1.5 rounded-xl border border-white/16 p-2.5 text-white shadow-lg select-none"
       style={cardStyle}
       onPointerDown={blockScenePointer}
       onPointerMove={blockScenePointer}
@@ -383,15 +558,6 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
           >
             {mode}
           </span>
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md border-0 bg-transparent px-1 text-[11px] font-medium text-white/80 outline-none hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white max-panel:grid max-panel:size-5 max-panel:place-items-center max-panel:px-0"
-          aria-label="Back to plant overview"
-          onClick={back}
-        >
-          <ArrowLeftIcon aria-hidden className="size-3.5" />
-          <span className="max-panel:sr-only">{COPY.backToPlant}</span>
         </button>
         <button
           type="button"
@@ -454,105 +620,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
         </div>
       )}
 
-      <svg
-        viewBox={vb.join(" ")}
-        className="block w-full rounded-md"
-        style={{ aspectRatio: `${vb[2]} / ${vb[3]}` }}
-        aria-hidden={points.length === 0 || !live}
-        role={live && points.length ? "group" : undefined}
-        aria-label={live && points.length ? "Viewpoints" : undefined}
-      >
-        <defs>
-          <pattern id={`${id}-grid`} width={50} height={50} patternUnits="userSpaceOnUse">
-            <path d="M50 0H0V50" fill="none" stroke="white" strokeOpacity={0.05} strokeWidth={2} />
-          </pattern>
-          <clipPath id={`${id}-room`}>
-            <polygon points={planPoints(room.polygon)} />
-          </clipPath>
-          <radialGradient ref={gradRef} id={`${id}-cone`} gradientUnits="userSpaceOnUse" r={300}>
-            <stop offset="0" stopColor={ACTIVE} stopOpacity={0.7} />
-            <stop offset="1" stopColor={ACTIVE} stopOpacity={0.1} />
-          </radialGradient>
-        </defs>
-
-        <rect x={vb[0]} y={vb[1]} width={vb[2]} height={vb[3]} fill={`url(#${id}-grid)`} />
-        {/* An SVG image, not <img>: the viewBox crops the plan together with the marks. */}
-        <image href={BLUEPRINT.furniture} width={PLAN.width} height={PLAN.height} opacity={0.43} />
-        <image href={BLUEPRINT.walls} width={PLAN.width} height={PLAN.height} opacity={0.92} />
-        <polygon
-          points={planPoints(room.polygon)}
-          fill={ACTIVE}
-          fillOpacity={0.08}
-          stroke={ACTIVE}
-          strokeOpacity={0.6}
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-        />
-
-        <g clipPath={`url(#${id}-room)`}>
-          <path ref={coneRef} fill={`url(#${id}-cone)`} stroke={ACTIVE} strokeOpacity={0.8} vectorEffect="non-scaling-stroke" strokeWidth={1} />
-        </g>
-
-        {live && points.length > 1 && (
-          <polyline
-            points={points.map((p) => p.at.join(",")).join(" ")}
-            fill="none"
-            stroke="white"
-            strokeOpacity={0.43}
-            strokeWidth={1.5}
-            strokeDasharray="4 4"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-
-        {live &&
-          points.map((p, i) =>
-            i === viewpoint ? null : (
-              <g
-                key={p.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Walk to viewpoint ${i + 1} of ${points.length}: ${p.label}`}
-                className="cursor-pointer outline-none [&:focus-visible>circle:last-child]:stroke-[3]"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onViewpoint(i)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter" && e.key !== " ") return
-                  e.preventDefault()
-                  onViewpoint(i)
-                }}
-              >
-                <title>{p.label}</title>
-                {/* Bigger invisible target than the ring itself. */}
-                <circle cx={p.at[0]} cy={p.at[1]} r={12 * k} fill="transparent" />
-                <circle
-                  cx={p.at[0]}
-                  cy={p.at[1]}
-                  r={4 * k}
-                  fill={visited.includes(i) ? "rgba(255,255,255,0.25)" : "transparent"}
-                  stroke="white"
-                  strokeOpacity={0.75}
-                  strokeWidth={1.5}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </g>
-            ),
-          )}
-
-        {find && (
-          <g transform={`translate(${find.at[0]} ${find.at[1]})`}>
-            <circle r={7 * k} fill="none" stroke="#FFC850" strokeOpacity={0.6} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-            <circle r={4 * k} fill="#FFC850" />
-          </g>
-        )}
-
-        <g ref={dotRef}>
-          <circle r={11 * k} fill={ACTIVE} fillOpacity={0.27} />
-          <circle r={4.5 * k} fill={ACTIVE} stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-        </g>
-      </svg>
+      {plan}
 
       {wide && others > 0 && (
         <p className="text-[11px] text-white/60 max-panel:hidden">{others} more rooms · inventory only</p>

@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils"
 import { useElementSize } from "@/hooks/use-element-size"
 import { useCardRect, type Rect } from "@/hooks/use-card-inset"
 import { DRAWABLE, useWorld, type SelectMode } from "@/components/world/world-provider"
-import { Button } from "@/components/ui/button"
 
 type ImageState = "loading" | "ready" | "missing"
 
@@ -29,8 +28,8 @@ function clampPan(t: number, s: number, imgStart: number, imgEnd: number, view: 
   return Math.min(-a, Math.max(view - b, t))
 }
 
-export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
-  const { state, select, hover, clearSelection, frame } = useWorld()
+export function Scene() {
+  const { state, select, hover, clearSelection, openCard } = useWorld()
   const containerRef = React.useRef<HTMLDivElement>(null)
   const imgRef = React.useRef<HTMLImageElement>(null)
   const { width, height } = useElementSize(containerRef)
@@ -167,7 +166,9 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
                 onPointerLeave={() => hover(null)}
                 onClick={(e) => {
                   e.stopPropagation()
-                  select(o.id, modeFromEvent(e))
+                  const mode = modeFromEvent(e)
+                  select(o.id, mode)
+                  if (mode === "only") openCard(o.id, "part")
                 }}
               >
                 <title>{o.name}</title>
@@ -197,7 +198,7 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
         </svg>
       </div>
 
-      <div aria-hidden className="pointer-events-none absolute inset-0">
+      <div className="pointer-events-none absolute inset-0">
         {width > 0 &&
           drawable.map((o) => {
             if (isHidden(o)) return null
@@ -216,7 +217,12 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
                 tabIndex={-1}
                 onPointerEnter={() => hover(o.id)}
                 onPointerLeave={() => hover(null)}
-                onClick={(e) => select(o.id, modeFromEvent(e))}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const mode = modeFromEvent(e)
+                  select(o.id, mode)
+                  if (mode === "only") openCard(o.id, "part")
+                }}
                 className={cn(
                   "pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border bg-black/75 px-2 py-0.5 text-label font-medium text-scene-ink shadow-sm backdrop-blur-sm",
                   "motion-transition transition-[left,top,opacity] duration-500 ease-out",
@@ -242,27 +248,12 @@ export function Scene({ topLeft }: { topLeft?: React.ReactNode }) {
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-        <div className="flex flex-col items-start gap-2">
-          {topLeft}
-          {segmenting && (
-            <p className="flex items-center gap-1.5 rounded-full bg-black/75 px-2.5 py-1 text-label font-medium text-scene-ink backdrop-blur-sm">
-              <ScanSearchIcon aria-hidden className="size-3.5 text-status-active" />
-              {`Segment view · "${segmenting.concept}"`}
-            </p>
-          )}
-        </div>
-        {framed && (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="pointer-events-auto"
-            onClick={() => frame(null)}
-          >
-            Reset frame
-          </Button>
-        )}
-      </div>
+      {segmenting && (
+        <p className="pointer-events-none absolute bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.75rem))] left-3 z-10 flex items-center gap-1.5 rounded-full bg-black/75 px-2.5 py-1 text-label font-medium text-scene-ink backdrop-blur-sm">
+          <ScanSearchIcon aria-hidden className="size-3.5 text-status-active" />
+          {`Segment view · "${segmenting.concept}"`}
+        </p>
+      )}
 
       {imageState === "missing" && (
         <p className="pointer-events-none absolute right-3 bottom-3 flex items-center gap-1.5 rounded-md bg-black/60 px-2 py-1 text-label text-scene-ink/80">
