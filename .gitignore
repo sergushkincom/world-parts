@@ -154,3 +154,6 @@ next-env.d.ts
 # Splat files: only the demo world is committed
 public/splats/*
 !public/splats/workshop.sog
+!public/splats/storeroom.sog
+!public/splats/production.sog
+!public/splats/corridor.sog
