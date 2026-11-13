@@ -192,6 +192,8 @@ export const STORAGE_KEYS = {
   selection: "world-parts.selection.v1",
   planHintSeen: "world-parts.plan-hint-seen.v1",
   concepts: "world-parts.concepts.v1",
+  /** Room minimap: position, size preset, zoom and collapsed state. */
+  minimap: "world-parts.minimap.v1",
 } as const
 
 /** Grey steel cabinet on the back wall, right of the pegboard; the bench covers its lower right. */
