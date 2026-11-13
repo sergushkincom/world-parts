@@ -2,7 +2,6 @@ import {
   PARTS,
   ROOMS,
   SEARCH_MIN_CHARS,
-  WORLD_ROOM,
   type Equipment,
   type Part,
   type Room,
@@ -97,25 +96,25 @@ export function searchPlant(q: string, worldObjects: WorldObject[]): { groups: R
   const add = (room: RoomId, hit: PlanHit) => hitsByRoom.set(room, [...(hitsByRoom.get(room) ?? []), hit])
 
   for (const { object, equipment } of placed) {
-    if (equipmentMatches(equipment, object, q)) add(WORLD_ROOM, { kind: "equipment", object, equipment })
+    if (equipmentMatches(equipment, object, q)) add(object.room ?? "workshop", { kind: "equipment", object, equipment })
   }
 
   for (const part of PARTS.filter((p) => partMatches(p, q))) {
     for (const location of part.storedIn) {
       const unit = isBin(location) ? byAsset.get(location.assetId) : undefined
-      if (unit) add(WORLD_ROOM, { kind: "stored", part, location, ...unit })
+      if (unit) add(unit.equipment.room, { kind: "stored", part, location, ...unit })
       else add(locationRoom(location), { kind: "inventory", part, location })
     }
     for (const assetId of part.installedIn) {
       const unit = byAsset.get(assetId)
-      if (unit) add(WORLD_ROOM, { kind: "installed", part, ...unit })
+      if (unit) add(unit.equipment.room, { kind: "installed", part, ...unit })
     }
   }
 
   const groups: RoomResults[] = ROOMS.flatMap((room) => {
     const hits = hitsByRoom.get(room.id)
     if (!hits?.length) return []
-    return [{ room, inWorld: room.id === WORLD_ROOM, hits: hits.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) }]
+    return [{ room, inWorld: room.scanned, hits: hits.sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]) }]
   }).sort((a, b) => Number(b.inWorld) - Number(a.inWorld))
 
   const options = groups.flatMap((g) =>

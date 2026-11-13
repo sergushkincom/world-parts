@@ -17,16 +17,33 @@ export const STILL_VIEW: CameraView = {
 export function planMapper(roomId: RoomId) {
   const cal = PLAN_CALIBRATION[roomId]
   if (!cal) return null
-  const [[wx0, wz0], [wx1, wz1]] = cal.world
+  // Turn world (x, z) so −Z points the way the still's camera faces on the plan; then u runs with plan x, v with plan y.
+  const turn = (x: number, z: number): Point => {
+    switch (cal.facing ?? "north") {
+      case "north":
+        return [x, z]
+      case "south":
+        return [-x, -z]
+      case "west":
+        return [z, -x]
+      case "east":
+        return [-z, x]
+    }
+  }
+  const [u0, v0] = turn(...cal.world[0])
+  const [u1, v1] = turn(...cal.world[1])
   const [[px0, py0], [px1, py1]] = cal.plan
-  const sx = (px1 - px0) / (wx1 - wx0)
-  const sz = (py1 - py0) / (wz1 - wz0)
-  const toPlan = (x: number, z: number): Point => [px0 + (x - wx0) * sx, py0 + (z - wz0) * sz]
+  const su = (px1 - px0) / (u1 - u0)
+  const sv = (py1 - py0) / (v1 - v0)
+  const toPlan = (x: number, z: number): Point => {
+    const [u, v] = turn(x, z)
+    return [px0 + (u - u0) * su, py0 + (v - v0) * sv]
+  }
   /**
    * Directions keep their true angle: the plan room is wider than the world's, so stretching x would open an
    * 82° view into a ~140° fan. The cone shows how much the camera sees, not where each wall lands.
    */
-  const dirToPlan = (dx: number, dz: number): Point => [dx, dz]
+  const dirToPlan = (dx: number, dz: number): Point => turn(dx, dz)
   /** Same as toPlan, but kept inside the room: objects measured just past a wall still land in their room. */
   const room = ROOMS.find((r) => r.id === roomId)
   const inRoom = (x: number, z: number, inset = 8): Point => {

@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { PLAN, WORLD_ROOM, type Room, type RoomId } from "@/lib/data"
+import { PLAN, type Room, type RoomId } from "@/lib/data"
 import { getRoom, inventoryHits, isSearchable, searchPlant, type SearchOption } from "@/lib/search"
 import { navigate } from "@/hooks/use-hash-route"
-import { DRAWABLE, useWorld } from "@/components/world/world-provider"
+import { DRAWABLE, roomOf, useWorld } from "@/components/world/world-provider"
 import { FloorPlan } from "@/components/plant/floor-plan"
 import { BOX } from "@/components/plant/plan-viewport"
 import { PlantSearch } from "@/components/plant/plant-search"
@@ -19,8 +19,8 @@ export function PlantView({ q, pin = null }: { q: string; pin?: RoomId | null })
   const noteRef = React.useRef(noteRoom)
   noteRef.current = noteRoom
   const inputRef = React.useRef<HTMLInputElement>(null)
-  const { state } = useWorld()
-  const worldObjects = React.useMemo(() => state.objects.filter((o) => DRAWABLE.includes(o.status)), [state.objects])
+  const { allObjects } = useWorld()
+  const worldObjects = React.useMemo(() => allObjects.filter((o) => DRAWABLE.includes(o.status)), [allObjects])
   const { groups, options } = React.useMemo(() => searchPlant(q, worldObjects), [q, worldObjects])
   const hitRooms = React.useMemo(
     () => (isSearchable(q) ? new Set(groups.map((g) => g.room.id)) : null),
@@ -40,12 +40,12 @@ export function PlantView({ q, pin = null }: { q: string; pin?: RoomId | null })
       return
     }
     const part = hit.kind === "equipment" ? null : hit.part.partNo
-    navigate({ level: "room", room: WORLD_ROOM, object: hit.object.concept, part, q })
+    navigate({ level: "room", room: roomOf(hit.object), object: hit.object.id, part, q })
   }
 
   const openRoom = (room: Room) => {
     if (room.scanned) {
-      const match = room.id === WORLD_ROOM ? options.find((o) => o.hit.kind !== "inventory") : undefined
+      const match = options.find((o) => o.room.id === room.id && o.hit.kind !== "inventory")
       if (match) openOption(match)
       else navigate({ level: "room", room: room.id, object: null, q: "" })
     }

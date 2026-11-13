@@ -1,4 +1,4 @@
-import { SEARCH_MIN_CHARS, WORLD_ROOM, type Part } from "@/lib/data"
+import { ROOMS, SEARCH_MIN_CHARS, type Part } from "@/lib/data"
 import { getEquipment, idleMonths, isIdle, isLowStock, locationLabel, partInRoom, partStatuses } from "@/lib/parts"
 
 export type PartFilter = "all" | "low" | "idle" | "room"
@@ -9,7 +9,7 @@ export const PART_FILTERS: { id: PartFilter; label: string; test: (p: Part) => b
   { id: "all", label: "All", test: () => true },
   { id: "low", label: "Low stock", test: isLowStock },
   { id: "idle", label: "Idle", test: isIdle },
-  { id: "room", label: "In world", test: (p) => partInRoom(p, WORLD_ROOM) },
+  { id: "room", label: "In world", test: (p) => ROOMS.some((r) => r.scanned && partInRoom(p, r.id)) },
 ]
 
 /** Part numbers are typed with or without dashes and spaces: "6205 2rs" finds BRG-6205-2RS. */

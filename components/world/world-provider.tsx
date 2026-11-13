@@ -14,6 +14,7 @@ import {
   VOTE_THRESHOLD,
   type GaussianView,
   type ObjectStatus,
+  type RoomId,
   type ServerTierId,
   type WorldObject,
 } from "@/lib/data"
@@ -25,6 +26,8 @@ export type SelectMode = "only" | "toggle" | "range"
 
 interface WorldState {
   hydrated: boolean
+  /** The room on screen. `objects` holds every room; the context hands out only this room's. */
+  roomId: RoomId
   storageOk: boolean
   objects: WorldObject[]
   selection: string[]
@@ -44,6 +47,7 @@ interface WorldState {
 export type CardTab = "object" | "part"
 
 type Action =
+  | { type: "setRoom"; room: RoomId }
   | { type: "openCard"; id: string; tab: CardTab }
   | { type: "closeCard" }
   | { type: "setCardTab"; tab: CardTab }
@@ -76,8 +80,26 @@ function patchObject(objects: WorldObject[], id: string, patch: Partial<WorldObj
   return objects.map((o) => (o.id === id ? { ...o, ...patch } : o))
 }
 
+/** Objects saved before rooms existed belong to the workshop. */
+export const roomOf = (o: WorldObject): RoomId => o.room ?? "workshop"
+
 function reducer(state: WorldState, action: Action): WorldState {
   switch (action.type) {
+    case "setRoom": {
+      if (action.room === state.roomId) return state
+      const first = state.objects.find((o) => roomOf(o) === action.room)?.id ?? null
+      return {
+        ...state,
+        roomId: action.room,
+        selection: [],
+        anchorId: null,
+        activeId: first,
+        hoveredId: null,
+        framedId: null,
+        cardId: null,
+        notice: null,
+      }
+    }
     case "openCard":
       return { ...state, cardId: action.id, cardTab: action.tab }
     case "closeCard":
@@ -91,7 +113,7 @@ function reducer(state: WorldState, action: Action): WorldState {
         storageOk: action.storageOk,
         objects: action.objects,
         selection: action.selection,
-        activeId: action.selection[0] ?? action.objects[0]?.id ?? null,
+        activeId: action.selection[0] ?? action.objects.find((o) => roomOf(o) === state.roomId)?.id ?? null,
       }
     case "storageFailed":
       return state.storageOk ? { ...state, storageOk: false } : state
@@ -150,7 +172,7 @@ function reducer(state: WorldState, action: Action): WorldState {
     case "resolve": {
       const target = state.objects.find((o) => o.id === action.id)
       if (!target) return state
-      const hit = MOCK_DETECTIONS[target.concept]
+      const hit = MOCK_DETECTIONS[roomOf(target)]?.[target.concept]
       const patch: Partial<WorldObject> = hit
         ? {
             status: hit.votes < VOTE_THRESHOLD ? "low_confidence" : "lifted",
@@ -176,9 +198,11 @@ function reducer(state: WorldState, action: Action): WorldState {
     case "rename":
       return { ...state, objects: patchObject(state.objects, action.id, { name: action.name }) }
     case "remove": {
-      const index = state.objects.findIndex((o) => o.id === action.id)
+      const inRoom = state.objects.filter((o) => roomOf(o) === state.roomId)
+      const index = inRoom.findIndex((o) => o.id === action.id)
       const objects = state.objects.filter((o) => o.id !== action.id)
-      const neighbour = objects[Math.min(index, objects.length - 1)]?.id ?? null
+      const rest = inRoom.filter((o) => o.id !== action.id)
+      const neighbour = rest[Math.min(index, rest.length - 1)]?.id ?? null
       return {
         ...state,
         objects,
@@ -194,7 +218,7 @@ function reducer(state: WorldState, action: Action): WorldState {
       return {
         ...state,
         cardId: null,
-        objects: [],
+        objects: state.objects.filter((o) => roomOf(o) !== state.roomId),
         selection: [],
         activeId: null,
         anchorId: null,
@@ -202,8 +226,12 @@ function reducer(state: WorldState, action: Action): WorldState {
         framedId: null,
         notice: null,
       }
-    case "loadSeed":
-      return { ...state, objects: SEED_OBJECTS, selection: [], activeId: SEED_OBJECTS[0]?.id ?? null }
+    case "loadSeed": {
+      // Restores this room's seed objects; other rooms keep what they have.
+      const seeds = SEED_OBJECTS.filter((o) => roomOf(o) === state.roomId)
+      const others = state.objects.filter((o) => roomOf(o) !== state.roomId)
+      return { ...state, objects: [...others, ...seeds], selection: [], activeId: seeds[0]?.id ?? null }
+    }
     case "setServerTier":
       return { ...state, serverTier: action.tier }
     case "setServerStatus":
@@ -213,6 +241,7 @@ function reducer(state: WorldState, action: Action): WorldState {
 
 const initialState: WorldState = {
   hydrated: false,
+  roomId: "workshop",
   storageOk: true,
   objects: [],
   selection: [],
@@ -260,7 +289,11 @@ function nextColorIndex(objects: WorldObject[]) {
 export type SubmitResult = "queued" | "exists" | "invalid"
 
 interface WorldContextValue {
+  /** `state.objects` is the current room's objects only. */
   state: WorldState
+  /** Every room's objects, for plant-wide search. */
+  allObjects: WorldObject[]
+  setRoom: (room: RoomId) => void
   selectedObjects: WorldObject[]
   conceptInputRef: React.RefObject<HTMLInputElement | null>
   registerRow: (id: string, el: HTMLElement | null) => void
@@ -304,6 +337,12 @@ function withCurrentSeedPolygons(objects: WorldObject[]): WorldObject[] {
   })
 }
 
+/** A saved world from before a room was scanned gets that room's seed objects. */
+function withNewRoomSeeds(objects: WorldObject[]): WorldObject[] {
+  const rooms = new Set(objects.map(roomOf))
+  return [...objects, ...SEED_OBJECTS.filter((o) => !rooms.has(roomOf(o)))]
+}
+
 export function WorldProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = React.useReducer(reducer, initialState)
   const stateRef = React.useRef(state)
@@ -314,7 +353,7 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     const objects = readJSON(STORAGE_KEYS.objects, isObjectArray)
     const selection = readJSON(STORAGE_KEYS.selection, isStringArray)
-    const loaded = settleInterrupted(withCurrentSeedPolygons(objects.value ?? SEED_OBJECTS))
+    const loaded = settleInterrupted(withCurrentSeedPolygons(withNewRoomSeeds(objects.value ?? SEED_OBJECTS)))
     const ids = new Set(loaded.map((o) => o.id))
     dispatch({
       type: "hydrate",
@@ -377,7 +416,8 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: "setNotice", notice: { tone: "error", text: "Server isn't ready — segment view is paused." } })
       return "invalid"
     }
-    const existing = s.objects.find((o) => o.concept === concept)
+    const roomObjects = s.objects.filter((o) => roomOf(o) === s.roomId)
+    const existing = roomObjects.find((o) => o.concept === concept)
     if (existing) {
       if (DRAWABLE.includes(existing.status)) {
         dispatch({ type: "select", id: existing.id, mode: "only" })
@@ -402,7 +442,8 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
         id: `obj-${concept.replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString(36)}`,
         name: concept,
         concept,
-        colorIndex: nextColorIndex(s.objects),
+        colorIndex: nextColorIndex(roomObjects),
+        room: s.roomId,
         splats: null,
         views: 0,
         votes: 0,
@@ -417,9 +458,12 @@ export function WorldProvider({ children }: { children: React.ReactNode }) {
 
   const value = React.useMemo<WorldContextValue>(() => {
     const selectedSet = new Set(state.selection)
+    const roomState = { ...state, objects: state.objects.filter((o) => roomOf(o) === state.roomId) }
     return {
-      state,
-      selectedObjects: state.objects.filter((o) => selectedSet.has(o.id)),
+      state: roomState,
+      allObjects: state.objects,
+      setRoom: (room) => dispatch({ type: "setRoom", room }),
+      selectedObjects: roomState.objects.filter((o) => selectedSet.has(o.id)),
       conceptInputRef,
       registerRow,
       focusRow,

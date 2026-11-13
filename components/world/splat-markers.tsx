@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { LIVE_WORLD, OBJECT_PALETTE, type WorldObject } from "@/lib/data"
+import { OBJECT_PALETTE, worldOf, type CameraPose, type WorldObject } from "@/lib/data"
 import { formatCount } from "@/lib/geometry"
 import type { SplatStats } from "@/lib/splat-mask"
 import { cn } from "@/lib/utils"
@@ -11,8 +11,12 @@ import type { Project } from "@/components/world/splat-canvas"
 export type MarkersHandle = { place: (project: Project) => void }
 
 /** The centre of the object's own splats (lifted from its still mask), else its hand-measured pose target. */
-function anchorOf(o: WorldObject, stats: Map<string, SplatStats>): [number, number, number] | null {
-  return stats.get(o.id)?.anchor ?? LIVE_WORLD.poses[o.id]?.target ?? null
+function anchorOf(
+  o: WorldObject,
+  stats: Map<string, SplatStats>,
+  poses: Record<string, CameraPose>,
+): [number, number, number] | null {
+  return stats.get(o.id)?.anchor ?? poses[o.id]?.target ?? null
 }
 
 /**
@@ -25,12 +29,13 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, { stats: Map<string,
   ref,
 ) {
   const { state, select, hover, frame, openCard } = useWorld()
+  const poses = worldOf(state.roomId).poses
   const nodes = React.useRef(new Map<string, HTMLButtonElement>())
 
-  const objects = state.objects.filter((o) => DRAWABLE.includes(o.status) && anchorOf(o, stats))
+  const objects = state.objects.filter((o) => DRAWABLE.includes(o.status) && anchorOf(o, stats, poses))
   const selected = new Set(state.selection)
   const anchors = React.useRef(new Map<string, [number, number, number]>())
-  anchors.current = new Map(objects.map((o) => [o.id, anchorOf(o, stats)!]))
+  anchors.current = new Map(objects.map((o) => [o.id, anchorOf(o, stats, poses)!]))
 
   React.useImperativeHandle(ref, () => ({
     place: (project) => {
