@@ -243,6 +243,8 @@ export const STORAGE_KEYS = {
   selection: "world-parts.selection.v1",
   planHintSeen: "world-parts.plan-hint-seen.v1",
   concepts: "world-parts.concepts.v1",
+  /** Room minimap: position, size preset, zoom and collapsed state. */
+  minimap: "world-parts.minimap.v1",
   /** First-visit orbit hint, dismissed after the first drag. */
   orbitHintSeen: "world-parts.orbit-hint-seen.v1",
   splatQuality: "world-parts.splat-quality.v1",
