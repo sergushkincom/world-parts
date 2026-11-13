@@ -80,6 +80,8 @@ type Props = {
   home: CameraPose
   /** Euler angles applied to the splat entity. */
   rotation: [number, number, number]
+  /** Back-buffer scale. Changing it resizes the canvas and does not reload the splat. */
+  pixelRatio?: number
   onStatus: (s: SplatStatus) => void
   onFirstInteraction?: () => void
   /**
@@ -93,7 +95,7 @@ const v = (p: [number, number, number]) => new Vec3(p[0], p[1], p[2])
 const EDITABLE = "input, textarea, select, [contenteditable='true']"
 
 export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function SplatCanvas(
-  { src, home, rotation, onStatus, onFirstInteraction, onFrame },
+  { src, home, rotation, pixelRatio = 1, onStatus, onFirstInteraction, onFrame },
   ref,
 ) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -109,6 +111,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   const homeRef = React.useRef(home)
   const frameRef = React.useRef(onFrame)
   frameRef.current = onFrame
+  const ratioRef = React.useRef(pixelRatio)
+  ratioRef.current = pixelRatio
 
   React.useImperativeHandle(ref, () => ({
     focus: (focus) => {
@@ -172,6 +176,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     }
     app.setCanvasFillMode(FILLMODE_NONE)
     app.setCanvasResolution(RESOLUTION_AUTO)
+    app.graphicsDevice.maxPixelRatio = ratioRef.current
 
     const resize = () => app.resizeCanvas(canvas.clientWidth, canvas.clientHeight)
     const observer = new ResizeObserver(resize)
@@ -248,18 +253,17 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     app.on("postrender", onUpdate)
     if (process.env.NODE_ENV === "development") (window as unknown as { __pcApp?: Application }).__pcApp = app
 
-    const first = () => {
+    const firstDrag = () => {
       interactRef.current?.()
-      canvas.removeEventListener("pointerdown", first)
-      canvas.removeEventListener("wheel", first)
+      canvas.removeEventListener("pointerdown", firstDrag)
     }
-    canvas.addEventListener("pointerdown", first)
-    canvas.addEventListener("wheel", first, { passive: true })
+    canvas.addEventListener("pointerdown", firstDrag)
 
     // Orbit mode ignores W/A/S/D (they only drive fly mode, which is off), so typing elsewhere can't move the camera.
     const typing = () => (document.activeElement as HTMLElement | null)?.closest?.(EDITABLE) != null
     const onKey = (e: KeyboardEvent) => {
       if (typing() || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
+      if (document.querySelector("[role='menu'], [role='alertdialog'], [role='dialog']")) return
       if (e.key === "r" || e.key === "R") {
         e.preventDefault()
         controls.reset(v(homeRef.current.target), v(homeRef.current.position))
@@ -268,8 +272,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     window.addEventListener("keydown", onKey)
 
     return () => {
-      canvas.removeEventListener("pointerdown", first)
-      canvas.removeEventListener("wheel", first)
+      canvas.removeEventListener("pointerdown", firstDrag)
       window.removeEventListener("keydown", onKey)
       app.off("postrender", onUpdate)
       observer.disconnect()
@@ -284,10 +287,18 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the app is created once per src
   }, [src])
 
+  React.useEffect(() => {
+    const app = appRef.current
+    const canvas = canvasRef.current
+    if (!app || !canvas) return
+    app.graphicsDevice.maxPixelRatio = pixelRatio
+    app.resizeCanvas(canvas.clientWidth, canvas.clientHeight)
+  }, [pixelRatio])
+
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 size-full touch-none outline-none"
+      className="absolute inset-0 size-full cursor-grab touch-none outline-none active:cursor-grabbing"
       aria-label="Live 3D view of the workshop. Drag to look around, scroll or pinch to zoom."
       tabIndex={0}
     />

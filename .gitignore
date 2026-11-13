@@ -151,5 +151,6 @@ vite.config.ts.timestamp-*
 # Next.js generated types
 next-env.d.ts
 
-# Large splat files: hosted outside git
-public/splats/
+# Splat files: only the demo world is committed
+public/splats/*
+!public/splats/workshop.sog

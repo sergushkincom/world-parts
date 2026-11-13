@@ -1,19 +1,18 @@
 "use client"
 
 import * as React from "react"
-import { ArrowLeftIcon, GripVerticalIcon, MapIcon, Minimize2Icon, MinusIcon, PlusIcon } from "lucide-react"
-import { COPY, PLAN, ROOMS, STORAGE_KEYS, VIEWPOINTS, type Point, type RoomId } from "@/lib/data"
+import { GripVerticalIcon, MapIcon, Minimize2Icon, MinusIcon, PlusIcon } from "lucide-react"
+import { PLAN, ROOMS, STORAGE_KEYS, VIEWPOINTS, type Point, type RoomId } from "@/lib/data"
 import { conePath, planMapper, roomViewBox, STILL_VIEW, zoomedPlanViewBox, type CameraView } from "@/lib/minimap"
 import { readJSON, writeJSON } from "@/lib/storage"
-import { navigate } from "@/hooks/use-hash-route"
 import { cn } from "@/lib/utils"
 import { BLUEPRINT, planPoints } from "@/components/plant/floor-plan"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 export type MinimapHandle = { setCamera: (view: CameraView) => void }
 
 type Props = {
   roomId: RoomId
-  q: string
   /** Live 3D with the world loaded: the cone follows the camera and viewpoints can be walked to. */
   live: boolean
   /** Viewpoint index the camera last walked to, if any. */
@@ -33,7 +32,7 @@ const WIDE_QUERY = "(min-width: 900px)"
 
 /**
  * Plan drawing width in CSS px. M is the original wide card (260px with padding); S and L are the other presets.
- * The phone card stays `NARROW_PLAN` (112px with padding) — drag and collapse only, no presets or zoom.
+ * The phone card stays `NARROW_PLAN` (112px with padding): drag and collapse only, no presets or zoom.
  */
 const PLAN_WIDTH = { S: 160, M: 240, L: 320 } as const
 const NARROW_PLAN = 96
@@ -47,12 +46,10 @@ const SIZE_NAME: Record<SizeId, string> = { S: "Small", M: "Medium", L: "Large" 
 const ZOOMS = [1, 1.5, 2, 2.5] as const
 type Zoom = (typeof ZOOMS)[number]
 
-/** Default corner: the old `top-14 left-3`. */
-const DEFAULT_LAYOUT = { x: 12, y: 56, size: "M" as SizeId, zoom: 1 as Zoom, collapsed: false }
-
 type MinimapLayout = { x: number; y: number; size: SizeId; zoom: Zoom; collapsed: boolean }
-
 type StoredMinimap = { x: number; y: number; size: SizeId; zoom: number; collapsed: boolean }
+
+const FALLBACK_LAYOUT: MinimapLayout = { x: 12, y: 68, size: "M", zoom: 1, collapsed: false }
 
 function useWide() {
   const [wide, setWide] = React.useState(true)
@@ -85,15 +82,52 @@ function snapZoom(zoom: number): Zoom {
   return ZOOMS.reduce((best, n) => (Math.abs(n - zoom) < Math.abs(best - zoom) ? n : best))
 }
 
-/** Keep the card inside the room view. `left`/`top` are relative to that view, not the window. */
-function clampToParent(el: HTMLElement | null, x: number, y: number) {
-  const parent = el?.offsetParent as HTMLElement | null
-  const rx = Math.round(x)
-  const ry = Math.round(y)
-  if (!el || !parent) return { x: rx, y: ry }
-  const maxX = Math.max(0, parent.clientWidth - el.offsetWidth)
-  const maxY = Math.max(0, parent.clientHeight - el.offsetHeight)
-  return { x: Math.min(maxX, Math.max(0, rx)), y: Math.min(maxY, Math.max(0, ry)) }
+/** Where the card starts: under the breadcrumb, inset from the left. */
+function breadcrumbCorner(frame: HTMLElement | null) {
+  const probe = document.createElement("div")
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;pointer-events:none;top:calc(4.25rem + env(safe-area-inset-top));left:0.75rem"
+  document.body.appendChild(probe)
+  const spot = probe.getBoundingClientRect()
+  probe.remove()
+  const origin = frame?.getBoundingClientRect()
+  return {
+    x: Math.round(spot.left - (origin?.left ?? 0)),
+    y: Math.round(spot.top - (origin?.top ?? 0)),
+  }
+}
+
+function sceneOf(el: HTMLElement | null) {
+  const frame = el?.offsetParent as HTMLElement | null
+  return { frame, scene: frame?.parentElement ?? frame }
+}
+
+/** Keep the card clear of the top bar, the bottom pill, and the narrow object sheet. */
+function insets(scene: HTMLElement, frame: HTMLElement) {
+  const frameRect = frame.getBoundingClientRect()
+  let top = 8
+  let bottom = 8
+  const left = 8
+  const right = 8
+  const toolbar = scene.querySelector("[data-room-toolbar]")
+  const pill = scene.querySelector("[data-view-pill]")
+  const card = scene.querySelector("[data-object-card]")
+  if (toolbar) top = Math.max(top, toolbar.getBoundingClientRect().bottom - frameRect.top + 8)
+  if (pill) bottom = Math.max(bottom, frameRect.bottom - pill.getBoundingClientRect().top + 8)
+  if (frameRect.width < 900 && card) bottom = Math.max(bottom, frameRect.bottom - card.getBoundingClientRect().top + 8)
+  return { top, right, bottom, left }
+}
+
+function clampToFrame(el: HTMLElement | null, x: number, y: number) {
+  const { frame, scene } = sceneOf(el)
+  if (!el || !frame || !scene) return { x: Math.round(x), y: Math.round(y) }
+  const pad = insets(scene, frame)
+  const maxX = frame.clientWidth - el.offsetWidth - pad.right
+  const maxY = frame.clientHeight - el.offsetHeight - pad.bottom
+  return {
+    x: Math.round(Math.min(Math.max(pad.left, x), Math.max(pad.left, maxX))),
+    y: Math.round(Math.min(Math.max(pad.top, y), Math.max(pad.top, maxY))),
+  }
 }
 
 function layoutsEqual(a: MinimapLayout, b: MinimapLayout) {
@@ -106,15 +140,15 @@ function blockScenePointer(e: React.SyntheticEvent) {
 }
 
 const iconBtn =
-  "grid size-6 shrink-0 place-items-center rounded-md border-0 bg-transparent p-0 text-white/75 outline-none hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-40 max-panel:size-5 [&_svg]:pointer-events-none [&_svg]:size-3.5"
+  "grid size-6 shrink-0 place-items-center rounded-md border-0 bg-transparent p-0 text-white/75 outline-none hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-40 max-panel:size-11 [&_svg]:pointer-events-none [&_svg]:size-3.5"
 
 /**
- * The floor plan as a blueprint card in the room. Desktop shows the whole building (where the room sits in
- * the plant) and can be dragged, resized and zoomed; the phone keeps the small room crop and can be dragged
- * or collapsed. A dot is where the camera stands, a cone where it looks. Viewpoints are rings; click one to walk there.
+ * The floor plan under the breadcrumb. Desktop can be dragged, resized and zoomed; the phone keeps the small
+ * room crop and can be dragged or collapsed. A dot is where the camera stands, a cone where it looks.
+ * Viewpoints are rings; click one to walk there. The breadcrumb, not this card, returns to the plant.
  */
 export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomMinimap(
-  { roomId, q, live, viewpoint, visited, onViewpoint, find },
+  { roomId, live, viewpoint, visited, onViewpoint, find },
   ref,
 ) {
   const room = ROOMS.find((r) => r.id === roomId)
@@ -122,7 +156,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   const wide = useWide()
   const id = React.useId().replace(/:/g, "")
 
-  const [layout, setLayout] = React.useState<MinimapLayout>(DEFAULT_LAYOUT)
+  const [layout, setLayout] = React.useState<MinimapLayout>(FALLBACK_LAYOUT)
   const layoutRef = React.useRef(layout)
   layoutRef.current = layout
   const [ready, setReady] = React.useState(false)
@@ -130,28 +164,37 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   const setCard = React.useCallback((node: HTMLElement | null) => {
     cardRef.current = node
   }, [])
+  const collapsedRef = React.useRef<HTMLButtonElement>(null)
+  const focusCollapsed = React.useRef(false)
+  const persist = React.useRef(false)
   const drag = React.useRef<{ id: number; ox: number; oy: number; sx: number; sy: number; moved: boolean } | null>(null)
   /** A drag that ends over the collapsed button must not count as the click that expands it. */
   const suppressClick = React.useRef(false)
 
-  const commit = React.useCallback((next: MinimapLayout) => {
+  const commit = React.useCallback((next: MinimapLayout, save = false) => {
+    if (save) persist.current = true
     if (layoutsEqual(layoutRef.current, next)) return
     layoutRef.current = next
     setLayout(next)
   }, [])
 
   const moveTo = React.useCallback(
-    (x: number, y: number) => {
-      const pos = clampToParent(cardRef.current, x, y)
-      commit({ ...layoutRef.current, ...pos })
+    (x: number, y: number, save = false) => {
+      const pos = clampToFrame(cardRef.current, x, y)
+      commit({ ...layoutRef.current, ...pos }, save)
     },
     [commit],
   )
 
   React.useLayoutEffect(() => {
     const read = readJSON(STORAGE_KEYS.minimap, isStoredMinimap)
+    const wideNow = window.matchMedia(WIDE_QUERY).matches
+    const corner = breadcrumbCorner(null)
     if (read.value) {
+      persist.current = true
       commit({ ...read.value, zoom: snapZoom(read.value.zoom) })
+    } else {
+      commit({ ...FALLBACK_LAYOUT, ...corner, collapsed: !wideNow })
     }
     setReady(true)
   }, [commit])
@@ -159,27 +202,63 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   React.useLayoutEffect(() => {
     if (!ready) return
     const el = cardRef.current
-    const parent = el?.offsetParent as HTMLElement | null
-    if (!el || !parent) return
+    const { frame, scene } = sceneOf(el)
+    if (!el || !frame || !scene) return
     const clampNow = () => {
       const node = cardRef.current
       if (!node) return
       const cur = layoutRef.current
-      const pos = clampToParent(node, cur.x, cur.y)
+      const pos = clampToFrame(node, cur.x, cur.y)
       if (pos.x === cur.x && pos.y === cur.y) return
       commit({ ...cur, ...pos })
     }
     clampNow()
     const observer = new ResizeObserver(clampNow)
-    observer.observe(parent)
+    observer.observe(frame)
     observer.observe(el)
-    return () => observer.disconnect()
+    const watch = () => {
+      scene.querySelectorAll("[data-room-toolbar], [data-view-pill], [data-object-card]").forEach((node) => {
+        observer.observe(node)
+      })
+    }
+    watch()
+    const mutations = new MutationObserver(() => {
+      watch()
+      clampNow()
+    })
+    mutations.observe(scene, { childList: true })
+    return () => {
+      observer.disconnect()
+      mutations.disconnect()
+    }
   }, [ready, layout.collapsed, layout.size, wide, commit])
 
   React.useEffect(() => {
-    if (!ready || drag.current) return
+    if (!ready || !persist.current || drag.current) return
     writeJSON(STORAGE_KEYS.minimap, layoutRef.current)
   }, [ready, layout])
+
+  React.useEffect(() => {
+    if (layout.collapsed && focusCollapsed.current) {
+      focusCollapsed.current = false
+      collapsedRef.current?.focus()
+    }
+  }, [layout.collapsed])
+
+  // On a phone the open plan is a layer: Escape hides it and leaves the object card alone.
+  React.useEffect(() => {
+    if (wide || layout.collapsed) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return
+      if (document.querySelector("[role='menu'], [role='alertdialog'], [role='dialog']")) return
+      e.preventDefault()
+      e.stopPropagation()
+      focusCollapsed.current = true
+      commit({ ...layoutRef.current, collapsed: true }, true)
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [wide, layout.collapsed, commit])
 
   const planPx = wide ? PLAN_WIDTH[layout.size] : NARROW_PLAN
   const vb = wide ? zoomedPlanViewBox(roomId, layout.zoom) : roomViewBox(roomId, 16)
@@ -202,20 +281,21 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     [map],
   )
   React.useImperativeHandle(ref, () => ({ setCamera: place }), [place])
-  // The still frame never moves: draw it once. Live 3D takes over through setCamera every frame.
   React.useLayoutEffect(() => {
     if (!live && !layout.collapsed) place(STILL_VIEW)
   }, [live, place, wide, layout.collapsed])
 
   const resetPosition = React.useCallback(() => {
-    moveTo(DEFAULT_LAYOUT.x, DEFAULT_LAYOUT.y)
+    const corner = breadcrumbCorner(sceneOf(cardRef.current).frame)
+    moveTo(corner.x, corner.y, true)
   }, [moveTo])
 
   const startDrag = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0 || drag.current) return
     suppressClick.current = false
-    const parent = cardRef.current?.offsetParent as HTMLElement | null
-    const origin = parent?.getBoundingClientRect()
+    persist.current = true
+    const frame = cardRef.current?.offsetParent as HTMLElement | null
+    const origin = frame?.getBoundingClientRect()
     drag.current = {
       id: e.pointerId,
       ox: e.clientX - (origin?.left ?? 0) - layoutRef.current.x,
@@ -233,8 +313,8 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     e.preventDefault()
     e.stopPropagation()
     if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 4) d.moved = true
-    const parent = cardRef.current?.offsetParent as HTMLElement | null
-    const origin = parent?.getBoundingClientRect()
+    const frame = cardRef.current?.offsetParent as HTMLElement | null
+    const origin = frame?.getBoundingClientRect()
     moveTo(e.clientX - (origin?.left ?? 0) - d.ox, e.clientY - (origin?.top ?? 0) - d.oy)
   }
 
@@ -250,11 +330,19 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   const onNudgeKey = (e: React.KeyboardEvent) => {
     const step = e.shiftKey ? 24 : 8
     const delta =
-      e.key === "ArrowLeft" ? [-step, 0] : e.key === "ArrowRight" ? [step, 0] : e.key === "ArrowUp" ? [0, -step] : e.key === "ArrowDown" ? [0, step] : null
+      e.key === "ArrowLeft"
+        ? [-step, 0]
+        : e.key === "ArrowRight"
+          ? [step, 0]
+          : e.key === "ArrowUp"
+            ? [0, -step]
+            : e.key === "ArrowDown"
+              ? [0, step]
+              : null
     if (!delta) return false
     e.preventDefault()
     e.stopPropagation()
-    moveTo(layoutRef.current.x + delta[0], layoutRef.current.y + delta[1])
+    moveTo(layoutRef.current.x + delta[0], layoutRef.current.y + delta[1], true)
     return true
   }
 
@@ -265,7 +353,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     e.stopPropagation()
     const i = SIZES.indexOf(layoutRef.current.size)
     const next = SIZES[Math.max(0, Math.min(SIZES.length - 1, i + dir))]
-    commit({ ...layoutRef.current, size: next })
+    commit({ ...layoutRef.current, size: next }, true)
     e.currentTarget.querySelector<HTMLButtonElement>(`[data-size="${next}"]`)?.focus()
   }
 
@@ -280,7 +368,6 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
       : viewpoint !== null
         ? `LIVE 3D · ${viewpoint + 1}/${points.length}`
         : "LIVE 3D"
-  const back = () => navigate({ level: "plant", q })
   const zoomIndex = Math.max(0, ZOOMS.indexOf(layout.zoom))
   const positionStyle = { background: CARD_BG, left: layout.x, top: layout.y }
   const cardStyle = {
@@ -290,44 +377,54 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
 
   if (layout.collapsed) {
     return (
-      <button
-        ref={setCard}
-        type="button"
-        aria-label={`Show the ${room.name} minimap. Arrow keys move it.`}
-        aria-expanded={false}
-        className="pointer-events-auto absolute z-10 grid size-10 cursor-grab touch-none place-items-center rounded-lg border border-white/16 text-white shadow-lg outline-none hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
-        style={{ ...positionStyle, touchAction: "none" }}
-        onPointerDown={(e) => {
-          blockScenePointer(e)
-          startDrag(e)
-        }}
-        onPointerMove={(e) => {
-          blockScenePointer(e)
-          moveDrag(e)
-        }}
-        onPointerUp={(e) => {
-          blockScenePointer(e)
-          endDrag(e)
-        }}
-        onPointerCancel={(e) => {
-          blockScenePointer(e)
-          endDrag(e)
-        }}
-        onLostPointerCapture={endDrag}
-        onClick={(e) => {
-          if (!suppressClick.current) {
-            commit({ ...layoutRef.current, collapsed: false })
-            return
-          }
-          suppressClick.current = false
-          e.preventDefault()
-          e.stopPropagation()
-        }}
-        onKeyDown={onNudgeKey}
-        onWheel={blockScenePointer}
-      >
-        <MapIcon aria-hidden className="size-4" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            ref={(node) => {
+              setCard(node)
+              collapsedRef.current = node
+            }}
+            type="button"
+            data-minimap-handle
+            aria-label={`Show the ${room.name} floor plan. Arrow keys move it.`}
+            aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
+            aria-expanded={false}
+            className="pointer-events-auto absolute z-10 grid size-11 cursor-grab touch-none place-items-center rounded-full text-white shadow-lg outline-none hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
+            style={{ ...positionStyle, touchAction: "none" }}
+            onPointerDown={(e) => {
+              blockScenePointer(e)
+              startDrag(e)
+            }}
+            onPointerMove={(e) => {
+              blockScenePointer(e)
+              moveDrag(e)
+            }}
+            onPointerUp={(e) => {
+              blockScenePointer(e)
+              endDrag(e)
+            }}
+            onPointerCancel={(e) => {
+              blockScenePointer(e)
+              endDrag(e)
+            }}
+            onLostPointerCapture={endDrag}
+            onClick={(e) => {
+              if (!suppressClick.current) {
+                commit({ ...layoutRef.current, collapsed: false }, true)
+                return
+              }
+              suppressClick.current = false
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            onKeyDown={onNudgeKey}
+            onWheel={blockScenePointer}
+          >
+            <MapIcon aria-hidden className="size-5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Floor plan · arrow keys</TooltipContent>
+      </Tooltip>
     )
   }
 
@@ -343,62 +440,55 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
       onWheel={blockScenePointer}
     >
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-roledescription="drag handle"
-          aria-label={`Move the ${room.name} minimap. Arrow keys nudge it, Shift moves further. Double-click or Enter returns it to the corner.`}
-          draggable={false}
-          // touch-action: none — a drag here must not become a look/orbit gesture on the canvas.
-          className="flex min-w-0 flex-1 cursor-grab touch-none items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-left text-white outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
-          style={{ touchAction: "none" }}
-          onPointerDown={(e) => {
-            if (e.button !== 0) return
-            e.stopPropagation()
-            startDrag(e)
-          }}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onLostPointerCapture={endDrag}
-          onDoubleClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            resetPosition()
-          }}
-          onKeyDown={(e) => {
-            if (onNudgeKey(e)) return
-            if (e.key !== "Enter" && e.key !== " ") return
-            e.preventDefault()
-            e.stopPropagation()
-            resetPosition()
-          }}
-        >
-          <GripVerticalIcon aria-hidden className="size-3.5 shrink-0 text-white/60 max-panel:hidden" />
-          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/95 max-panel:sr-only">{room.name}</span>
-          <span
-            className={cn(
-              "truncate font-mono text-[10px] tracking-wide text-white/60 uppercase",
-              wide ? "shrink-0" : "min-w-0 flex-1",
-            )}
-          >
-            {mode}
-          </span>
-        </button>
-        <button
-          type="button"
-          className="inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md border-0 bg-transparent px-1 text-[11px] font-medium text-white/80 outline-none hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white max-panel:grid max-panel:size-5 max-panel:place-items-center max-panel:px-0"
-          aria-label="Back to plant overview"
-          onClick={back}
-        >
-          <ArrowLeftIcon aria-hidden className="size-3.5" />
-          <span className="max-panel:sr-only">{COPY.backToPlant}</span>
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              data-minimap-handle
+              aria-roledescription="drag handle"
+              aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Enter"
+              aria-label={`Move the ${room.name} floor plan. Arrow keys nudge it, Shift moves further. Double-click or Enter puts it back under the breadcrumb.`}
+              draggable={false}
+              // touch-action: none — a drag here must not become a look/orbit gesture on the canvas.
+              className="flex min-w-0 flex-1 cursor-grab touch-none items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-left text-white outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:cursor-grabbing max-panel:min-h-11"
+              style={{ touchAction: "none" }}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return
+                e.stopPropagation()
+                startDrag(e)
+              }}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onLostPointerCapture={endDrag}
+              onDoubleClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                resetPosition()
+              }}
+              onKeyDown={(e) => {
+                if (onNudgeKey(e)) return
+                if (e.key !== "Enter" && e.key !== " ") return
+                e.preventDefault()
+                e.stopPropagation()
+                resetPosition()
+              }}
+            >
+              <GripVerticalIcon aria-hidden className="size-3.5 shrink-0 text-white/60 max-panel:hidden" />
+              <span className="min-w-0 flex-1 truncate font-mono text-[10px] tracking-wide text-white/60 uppercase">{mode}</span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Move · arrow keys</TooltipContent>
+        </Tooltip>
         <button
           type="button"
           className={iconBtn}
-          aria-label="Collapse minimap"
+          aria-label="Collapse floor plan"
           aria-expanded
-          onClick={() => commit({ ...layoutRef.current, collapsed: true })}
+          onClick={() => {
+            focusCollapsed.current = true
+            commit({ ...layoutRef.current, collapsed: true }, true)
+          }}
         >
           <Minimize2Icon aria-hidden />
         </button>
@@ -425,7 +515,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
                   "grid h-6 min-w-6 place-items-center rounded-[5px] border-0 bg-transparent px-1.5 font-mono text-[10px] tracking-wide outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                   layout.size === size ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white",
                 )}
-                onClick={() => commit({ ...layoutRef.current, size })}
+                onClick={() => commit({ ...layoutRef.current, size }, true)}
               >
                 {size}
               </button>
@@ -437,7 +527,11 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
               className={iconBtn}
               aria-label={`Zoom out, currently ${layout.zoom}×`}
               disabled={zoomIndex <= 0}
-              onClick={() => commit({ ...layoutRef.current, zoom: ZOOMS[zoomIndex - 1] })}
+              onClick={() => {
+                const next = ZOOMS[zoomIndex - 1]
+                if (next === undefined) return
+                commit({ ...layoutRef.current, zoom: next }, true)
+              }}
             >
               <MinusIcon aria-hidden />
             </button>
@@ -446,7 +540,11 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
               className={iconBtn}
               aria-label={`Zoom in, currently ${layout.zoom}×`}
               disabled={zoomIndex >= ZOOMS.length - 1}
-              onClick={() => commit({ ...layoutRef.current, zoom: ZOOMS[zoomIndex + 1] })}
+              onClick={() => {
+                const next = ZOOMS[zoomIndex + 1]
+                if (next === undefined) return
+                commit({ ...layoutRef.current, zoom: next }, true)
+              }}
             >
               <PlusIcon aria-hidden />
             </button>
@@ -476,7 +574,6 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
         </defs>
 
         <rect x={vb[0]} y={vb[1]} width={vb[2]} height={vb[3]} fill={`url(#${id}-grid)`} />
-        {/* An SVG image, not <img>: the viewBox crops the plan together with the marks. */}
         <image href={BLUEPRINT.furniture} width={PLAN.width} height={PLAN.height} opacity={0.43} />
         <image href={BLUEPRINT.walls} width={PLAN.width} height={PLAN.height} opacity={0.92} />
         <polygon
@@ -525,7 +622,6 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
                 }}
               >
                 <title>{p.label}</title>
-                {/* Bigger invisible target than the ring itself. */}
                 <circle cx={p.at[0]} cy={p.at[1]} r={12 * k} fill="transparent" />
                 <circle
                   cx={p.at[0]}

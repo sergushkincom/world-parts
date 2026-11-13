@@ -50,7 +50,7 @@ export const SCENE = {
 
 /**
  * Live 3D: the same SpAItial world as the still frame, exported as SOG.
- * Hosted outside git; NEXT_PUBLIC_SPLAT_URL points at it. Camera poses are measured by hand in the viewer.
+ * Committed in public/splats; NEXT_PUBLIC_SPLAT_URL can point at another world. Camera poses are measured by hand in the viewer.
  */
 export const LIVE_WORLD = {
   src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
@@ -194,6 +194,9 @@ export const STORAGE_KEYS = {
   concepts: "world-parts.concepts.v1",
   /** Room minimap: position, size preset, zoom and collapsed state. */
   minimap: "world-parts.minimap.v1",
+  /** First-visit orbit hint, dismissed after the first drag. */
+  orbitHintSeen: "world-parts.orbit-hint-seen.v1",
+  splatQuality: "world-parts.splat-quality.v1",
 } as const
 
 /** Grey steel cabinet on the back wall, right of the pegboard; the bench covers its lower right. */
