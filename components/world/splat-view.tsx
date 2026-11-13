@@ -2,14 +2,13 @@
 
 import * as React from "react"
 import dynamic from "next/dynamic"
-import { RotateCcwIcon, TriangleAlertIcon } from "lucide-react"
+import { TriangleAlertIcon } from "lucide-react"
 import { LIVE_WORLD, OBJECT_PALETTE, type CameraPose, type WorldObject } from "@/lib/data"
 import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
 import type { CameraView } from "@/lib/minimap"
 import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
-import { ViewControlsHelp } from "@/components/world/view-controls-help"
 import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
 
 // WebGL can't run on the server: load the engine only in the browser, and only when Live 3D is on.
@@ -41,34 +40,30 @@ function focusFor(o: WorldObject, stats: SplatStats | undefined): Focus | null {
   return { maskId: stats.maskId, near: stats.near, far: stats.far, color }
 }
 
-function useHint() {
-  const [touch, setTouch] = React.useState(false)
-  React.useEffect(() => setTouch(window.matchMedia("(pointer: coarse)").matches), [])
-  return touch
-    ? "Tap a marker to explore · Drag to look"
-    : "Click a marker to explore · Drag to look · ? for all controls"
-}
-
-export type SplatViewHandle = { flyTo: (pose: CameraPose) => void }
+export type SplatViewHandle = { flyTo: (pose: CameraPose) => void; reset: () => void }
 
 type SplatViewProps = {
-  topLeft?: React.ReactNode
   onFallback: () => void
   /** Every frame: where the camera stands and looks on the floor. For the minimap; write to the DOM, not state. */
   onCamera?: (view: CameraView) => void
   onReadyChange?: (ready: boolean) => void
+  /** First drag in the live world. Dismisses the one-time orbit hint. */
+  onFirstDrag?: () => void
+  /** Back-buffer scale. Does not reload the splat. */
+  pixelRatio?: number
 }
 
 export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
-  { topLeft, onFallback, onCamera, onReadyChange },
+  { onFallback, onCamera, onReadyChange, onFirstDrag, pixelRatio },
   handle,
 ) {
   const ref = React.useRef<SplatCanvasHandle>(null)
-  React.useImperativeHandle(handle, () => ({ flyTo: (pose) => ref.current?.flyTo(pose) }))
+  React.useImperativeHandle(handle, () => ({
+    flyTo: (pose) => ref.current?.flyTo(pose),
+    reset: () => ref.current?.reset(),
+  }))
   const markersRef = React.useRef<MarkersHandle>(null)
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
-  const [touched, setTouched] = React.useState(false)
-  const hint = useHint()
   const { state } = useWorld()
   const readyRef = React.useRef(onReadyChange)
   readyRef.current = onReadyChange
@@ -130,8 +125,9 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         src={LIVE_WORLD.src}
         home={LIVE_WORLD.home}
         rotation={LIVE_WORLD.rotation}
+        pixelRatio={pixelRatio}
         onStatus={setStatus}
-        onFirstInteraction={() => setTouched(true)}
+        onFirstInteraction={onFirstDrag}
         onFrame={(project, view) => {
           markersRef.current?.place(project)
           onCamera?.(view)
@@ -139,25 +135,6 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       />
 
       {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} />}
-
-      <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
-        <div className="flex flex-col items-start gap-2">{topLeft}</div>
-        {status.kind === "ready" && (
-          <div className="flex items-start gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              className="pointer-events-auto"
-              aria-keyshortcuts="R"
-              onClick={() => ref.current?.reset()}
-            >
-              <RotateCcwIcon aria-hidden data-icon="inline-start" />
-              Reset view
-            </Button>
-            <ViewControlsHelp />
-          </div>
-        )}
-      </div>
 
       {status.kind === "loading" && (
         <div role="status" className="absolute inset-0 grid place-items-center">
@@ -188,15 +165,6 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         </div>
       )}
 
-      {status.kind === "ready" && (
-        <p
-          aria-hidden={touched}
-          className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/75 px-3 py-1.5 text-label whitespace-nowrap text-scene-ink backdrop-blur-sm transition-opacity duration-500 data-[gone=true]:opacity-0"
-          data-gone={touched}
-        >
-          {hint}
-        </p>
-      )}
     </div>
   )
 })

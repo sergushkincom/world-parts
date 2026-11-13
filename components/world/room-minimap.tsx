@@ -1,16 +1,15 @@
 "use client"
 
 import * as React from "react"
+import { MapIcon, XIcon } from "lucide-react"
 import { PLAN, ROOMS, VIEWPOINTS, type Point, type RoomId } from "@/lib/data"
 import { conePath, planMapper, roomViewBox, STILL_VIEW, type CameraView } from "@/lib/minimap"
-import { navigate } from "@/hooks/use-hash-route"
 import { BLUEPRINT, planPoints } from "@/components/plant/floor-plan"
 
 export type MinimapHandle = { setCamera: (view: CameraView) => void }
 
 type Props = {
   roomId: RoomId
-  q: string
   /** Live 3D with the world loaded: the cone follows the camera and viewpoints can be walked to. */
   live: boolean
   /** Viewpoint index the camera last walked to, if any. */
@@ -26,7 +25,7 @@ const ACTIVE = "#5aa2ff"
 
 /** Card widths: plan area in CSS px, used to keep dots and rings the same size on screen at any crop. */
 const WIDE = { min: "(min-width: 900px)", plan: 240 }
-const NARROW_PLAN = 96
+const NARROW_PLAN = 240
 
 function useWide() {
   const [wide, setWide] = React.useState(true)
@@ -46,12 +45,15 @@ function useWide() {
  * for the still frame, live in 3D. Viewpoints are rings; click one to walk there.
  */
 export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomMinimap(
-  { roomId, q, live, viewpoint, visited, onViewpoint, find },
+  { roomId, live, viewpoint, visited, onViewpoint, find },
   ref,
 ) {
   const room = ROOMS.find((r) => r.id === roomId)
   const map = React.useMemo(() => planMapper(roomId), [roomId])
   const wide = useWide()
+  const [open, setOpen] = React.useState(false)
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  const openButtonRef = React.useRef<HTMLButtonElement>(null)
   const id = React.useId().replace(/:/g, "")
 
   const vb = wide ? [0, 0, PLAN.width, PLAN.height] : roomViewBox(roomId, 16)
@@ -79,7 +81,47 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     if (!live) place(STILL_VIEW)
   }, [live, place, wide])
 
+  const close = React.useCallback(() => {
+    setOpen(false)
+    requestAnimationFrame(() => openButtonRef.current?.focus())
+  }, [])
+
+  React.useEffect(() => {
+    if (wide || !open) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return
+      if (document.querySelector("[role='menu'], [role='alertdialog'], [role='dialog']")) return
+      e.preventDefault()
+      e.stopPropagation()
+      close()
+    }
+    function onPointer(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener("keydown", onKey, true)
+    document.addEventListener("pointerdown", onPointer)
+    return () => {
+      window.removeEventListener("keydown", onKey, true)
+      document.removeEventListener("pointerdown", onPointer)
+    }
+  }, [wide, open, close])
+
   if (!room || !map) return null
+  if (!wide && !open) {
+    return (
+      <button
+        ref={openButtonRef}
+        type="button"
+        aria-label="Open floor plan"
+        aria-expanded={false}
+        onClick={() => setOpen(true)}
+        className="pointer-events-auto grid size-11 place-items-center rounded-full text-white shadow-lg outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        style={{ background: "rgba(12, 38, 66, 0.92)" }}
+      >
+        <MapIcon aria-hidden className="size-5" />
+      </button>
+    )
+  }
   const points = (VIEWPOINTS[roomId] ?? []).map((v) => ({ ...v, at: map.toPlan(v.pose.position[0], v.pose.position[2]) }))
   const others = ROOMS.filter((r) => r.id !== roomId && !r.scanned).length
   const mode = find
@@ -89,30 +131,31 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
       : viewpoint !== null
         ? `LIVE 3D · ${viewpoint + 1}/${points.length}`
         : "LIVE 3D"
-  const back = () => navigate({ level: "plant", q })
 
   return (
     <div
-      className="pointer-events-auto absolute top-14 left-3 z-10 flex w-[260px] flex-col gap-1.5 rounded-xl border border-white/16 p-2.5 text-white shadow-lg max-panel:w-[112px] max-panel:gap-1 max-panel:rounded-lg max-panel:p-2"
+      ref={rootRef}
+      className="pointer-events-auto flex w-[260px] flex-col gap-1.5 rounded-xl border border-white/16 p-2.5 text-white shadow-lg max-panel:w-[min(15rem,calc(100vw-1.5rem))]"
       style={{ background: "rgba(12, 38, 66, 0.92)" }}
     >
-      <button
-        type="button"
-        onClick={back}
-        aria-label={`${room.name} on the plant floor plan — back to plant overview`}
-        className="flex items-baseline justify-between gap-2 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-      >
-        <span className="truncate text-[13px] font-semibold text-white/95 max-panel:sr-only">{room.name}</span>
-        <span className="shrink-0 truncate font-mono text-[10px] tracking-wide text-white/60 uppercase max-panel:max-w-full">
-          {mode}
-        </span>
-      </button>
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate font-mono text-[10px] tracking-wide text-white/60 uppercase">{mode}</span>
+        {!wide && (
+          <button
+            type="button"
+            aria-label="Close floor plan"
+            onClick={close}
+            className="-mr-1 grid size-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+          >
+            <XIcon aria-hidden className="size-4" />
+          </button>
+        )}
+      </div>
 
       <svg
         viewBox={vb.join(" ")}
-        className="block w-full cursor-pointer rounded-md"
+        className="block w-full rounded-md"
         style={{ aspectRatio: `${vb[2]} / ${vb[3]}` }}
-        onClick={back}
         aria-hidden={points.length === 0 || !live}
         role={live && points.length ? "group" : undefined}
         aria-label={live && points.length ? "Viewpoints" : undefined}
