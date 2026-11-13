@@ -15,6 +15,8 @@ import {
   learnKey,
   learningProgress,
   msUntilTeach,
+  offerGesture,
+  shiftClearOf,
   parseRecord,
   pointerUsed,
   resetTips,
@@ -136,7 +138,7 @@ describe("progress and storage", () => {
     const state = learnKey(learnKey(fresh(), "reset"), "go")
     assert.deepEqual(learningProgress(state.record, false), { learned: 2, total: SHORTCUTS.length })
     const touch = gestureUsed(state, "drag")
-    assert.deepEqual(learningProgress(touch.record, true), { learned: 1, total: 3 })
+    assert.deepEqual(learningProgress(touch.record, true), { learned: 1, total: 5 })
   })
 
   it("reads a versioned record and drops ids it does not know", () => {
@@ -175,6 +177,32 @@ describe("progress and storage", () => {
     const queued = pointerUsed(state, "go", 1_500)
     assert.equal(msUntilTeach(queued, 1_500), HINT_GAP_MS - 500)
     assert.equal(flushTeach(queued, 1_500).hint, null)
+  })
+})
+
+describe("minimap hints", () => {
+  it("offers the map gesture on touch and leaves a mouse alone", () => {
+    const touch = offerGesture(fresh({ touch: true }), "map-move", 0)
+    assert.equal(touch.hint?.announcement, "Drag the header to move the plan")
+    assert.equal(offerGesture(fresh(), "map-move", 0).hint, null)
+  })
+
+  it("slides a chip off the minimap and leaves a clear chip where it is", () => {
+    const chip = { left: 400, top: 500, width: 120, height: 32 }
+    const map = { left: 420, top: 480, width: 200, height: 160 }
+    const shifted = shiftClearOf(chip, map, { width: 1280, height: 800 })
+    assert.ok(shifted.x !== 0 || shifted.y !== 0)
+    const moved = { ...chip, left: chip.left + shifted.x, top: chip.top + shifted.y }
+    const misses =
+      moved.left + moved.width <= map.left ||
+      map.left + map.width <= moved.left ||
+      moved.top + moved.height <= map.top ||
+      map.top + map.height <= moved.top
+    assert.equal(misses, true)
+    assert.deepEqual(shiftClearOf(chip, { left: 20, top: 20, width: 180, height: 140 }, { width: 1280, height: 800 }), {
+      x: 0,
+      y: 0,
+    })
   })
 })
 

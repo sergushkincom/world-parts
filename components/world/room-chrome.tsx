@@ -8,7 +8,7 @@ import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { RoomMinimap, type MinimapHandle } from "@/components/world/room-minimap"
 import { RoomBreadcrumb } from "@/components/world/room-nav"
 import { RoomSearch } from "@/components/world/room-search"
-import { ShortcutHint } from "@/components/world/shortcut-hint"
+import { HintSlot, ShortcutHint } from "@/components/world/shortcut-hint"
 import { ShortcutsPanel } from "@/components/world/shortcuts-panel"
 import { ViewPill } from "@/components/world/view-pill"
 import type { SplatQuality } from "@/lib/splat-quality"
@@ -57,7 +57,7 @@ export function RoomChrome({
   const roomName = ROOMS.find((r) => r.id === roomId)?.name ?? "Room"
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false)
-  const { touch, tipsOff, setGate } = useShortcutLearning()
+  const { touch, tipsOff, hint, setGate } = useShortcutLearning()
   const orbitVisible = showOrbitHint && !touch && !tipsOff
 
   React.useEffect(() => {
@@ -66,7 +66,10 @@ export function RoomChrome({
 
   return (
     <>
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div
+        data-room-toolbar
+        className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]"
+      >
         <div className="panel:grid panel:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] panel:items-start panel:gap-3">
           <div
             className={cn(
@@ -107,7 +110,8 @@ export function RoomChrome({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute top-[calc(4.25rem+env(safe-area-inset-top))] left-3 z-20">
+      {/* Full-size layer so the card can be dragged in the room view. It starts under the breadcrumb. */}
+      <div className="pointer-events-none absolute inset-0 z-20">
         <RoomMinimap
           ref={minimapRef}
           roomId={roomId}
@@ -119,12 +123,14 @@ export function RoomChrome({
         />
       </div>
 
-      {orbitVisible && (
-        <p className="pointer-events-none absolute bottom-[max(4.25rem,calc(env(safe-area-inset-bottom)+3.5rem))] left-1/2 z-30 max-w-[calc(100%-6rem)] -translate-x-1/2 rounded-full bg-black/75 px-3 py-1.5 text-center text-label text-scene-ink shadow-lg backdrop-blur-sm">
-          Drag to orbit · scroll to zoom · ? all shortcuts
-        </p>
-      )}
-      <ShortcutHint />
+      <HintSlot active={orbitVisible || hint != null}>
+        {orbitVisible && (
+          <p className="max-w-[calc(100vw-6rem)] rounded-full bg-black/75 px-3 py-1.5 text-center text-label text-scene-ink shadow-lg backdrop-blur-sm">
+            Drag to orbit · scroll to zoom · ? all shortcuts
+          </p>
+        )}
+        <ShortcutHint />
+      </HintSlot>
 
       <ViewPill
         mode={mode}

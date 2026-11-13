@@ -9,6 +9,7 @@ import {
   dismissHint,
   flushTeach,
   gestureUsed,
+  offerGesture as queueGesture,
   initialTeachState,
   learnKey,
   learningProgress,
@@ -56,6 +57,7 @@ type Api = {
   notePointer: (id: ShortcutId) => void
   noteKey: (id: ShortcutId) => void
   noteGesture: (id: GestureId) => void
+  offerGesture: (id: GestureId) => void
   dismiss: () => void
   resetTips: () => void
   setTipsOff: (off: boolean) => void
@@ -158,6 +160,10 @@ export function ShortcutLearningProvider({ children }: { children: React.ReactNo
       noteGesture: (id) => {
         if (!readyRef.current) return
         commit(gestureUsed(teachRef.current, id))
+      },
+      offerGesture: (id) => {
+        if (!readyRef.current) return
+        commit(queueGesture(teachRef.current, id, Date.now()))
       },
       dismiss: () => commit(dismissHint(teachRef.current)),
       resetTips: () => {

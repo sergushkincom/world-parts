@@ -169,6 +169,7 @@ export function ShortcutsPanel({
           ) : (
             <div className="flex flex-col gap-3">
               <Section title="Navigation" learned={learned} />
+              <Section title="Minimap" learned={learned} />
               <section aria-label="View">
                 <h3 className="mb-1 text-label tracking-wider text-scene-ink/50 uppercase">View</h3>
                 <dl className="flex flex-col gap-1.5">

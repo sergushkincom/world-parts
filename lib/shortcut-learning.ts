@@ -15,13 +15,16 @@ export const GESTURE_DRAG_PX = 10
 export const GESTURE_PINCH_PX = 18
 export const GESTURE_PAN_PX = 16
 
-export type ShortcutGroup = "Navigation" | "View" | "Objects"
+export type ShortcutGroup = "Navigation" | "Minimap" | "View" | "Objects"
 
 export type ShortcutId =
   | "search"
   | "prev-next"
   | "extend"
   | "escape"
+  | "minimap-move"
+  | "minimap-further"
+  | "minimap-home"
   | "reset"
   | "highlight"
   | "recolor"
@@ -32,7 +35,10 @@ export type ShortcutId =
   | "rename"
   | "remove"
 
-export type GestureId = "drag" | "pinch" | "pan"
+export type GestureId = "drag" | "pinch" | "pan" | "map-move" | "map-toggle"
+
+/** Camera gestures coached while Live 3D is on. The map gestures are offered by the minimap itself. */
+export const CAMERA_GESTURES: readonly GestureId[] = ["drag", "pinch", "pan"]
 
 export type ShortcutDef = {
   id: ShortcutId
@@ -61,6 +67,9 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   { id: "prev-next", group: "Navigation", action: "Previous / next object", hint: "Previous or next", keys: ["↑", "↓"] },
   { id: "extend", group: "Navigation", action: "Extend the selection", hint: "Extend", keys: ["Shift", "↑", "↓"] },
   { id: "escape", group: "Navigation", action: "Close card, clear selection, or plant", hint: "Close or back", keys: ["Esc"] },
+  { id: "minimap-move", group: "Minimap", action: "Nudge the plan, handle focused", hint: "Move the plan", keys: ["↑", "↓", "←", "→"] },
+  { id: "minimap-further", group: "Minimap", action: "Nudge the plan further", hint: "Move further", keys: ["Shift", "↑"] },
+  { id: "minimap-home", group: "Minimap", action: "Back under the breadcrumb", hint: "Back", keys: ["Enter"] },
   { id: "reset", group: "View", action: "Reset view", hint: "Reset", keys: ["R"] },
   { id: "highlight", group: "View", action: "Highlight", hint: "Highlight", keys: ["1"] },
   { id: "recolor", group: "View", action: "Recolor + dim rest", hint: "Recolor", keys: ["2"] },
@@ -76,6 +85,8 @@ export const GESTURES: readonly GestureDef[] = [
   { id: "drag", action: "Rotate", how: "One finger", hint: "Drag to look around" },
   { id: "pinch", action: "Zoom", how: "Pinch", hint: "Pinch to zoom" },
   { id: "pan", action: "Pan", how: "Two fingers", hint: "Two fingers to pan" },
+  { id: "map-move", action: "Move the plan", how: "Drag its header", hint: "Drag the header to move the plan" },
+  { id: "map-toggle", action: "Show or hide the plan", how: "The map button", hint: "The map button shows or hides the plan" },
 ]
 
 const SHORTCUT_IDS = new Set<string>(SHORTCUTS.map((s) => s.id))
@@ -240,8 +251,9 @@ function validPending(state: TeachState): Pending | null {
   const pending = state.session.pending
   if (!pending) return null
   if (pending.kind === "gesture") {
-    if (!state.gate.touch || !state.gate.coachGestures) return null
-    if (state.record.gesturesSeen.includes(pending.id)) return null
+    if (!state.gate.touch || state.record.gesturesSeen.includes(pending.id)) return null
+    const camera = (CAMERA_GESTURES as readonly string[]).includes(pending.id)
+    if (camera && !state.gate.coachGestures) return null
     return pending
   }
   if (state.gate.touch || state.record.learned.includes(pending.id)) return null
@@ -330,6 +342,21 @@ export function pointerUsed(state: TeachState, id: ShortcutId, now: number): Tea
   return reveal(next, keyPending(kind, id), now)
 }
 
+/**
+ * A touch surface can offer one of its own gestures, such as the minimap header.
+ * Camera gestures stay on the live-view coach instead.
+ */
+export function offerGesture(state: TeachState, id: GestureId, now: number): TeachState {
+  if (!state.gate.touch || state.record.tipsOff || state.gate.typing || !isGestureId(id)) return state
+  if (state.record.gesturesSeen.includes(id) || state.session.shown >= MAX_HINTS_PER_SESSION) return state
+  const pending: Pending = { kind: "gesture", id }
+  if (blocked(state) || !gapOpen(state, now)) {
+    if (state.session.pending) return state
+    return { ...state, session: { ...state.session, pending } }
+  }
+  return reveal(state, pending, now)
+}
+
 /** Using the key ends teaching for it, including a chip that is already up. */
 export function learnKey(state: TeachState, id: ShortcutId): TeachState {
   if (!isShortcutId(id)) return state
@@ -415,8 +442,8 @@ export function flushTeach(state: TeachState, now: number): TeachState {
   const pending = validPending(state)
   if (pending) return reveal(state, pending, now)
   if (state.gate.touch && state.gate.coachGestures) {
-    const gesture = GESTURES.find((g) => !state.record.gesturesSeen.includes(g.id))
-    if (gesture) return reveal(state, { kind: "gesture", id: gesture.id }, now)
+    const gesture = CAMERA_GESTURES.find((id) => !state.record.gesturesSeen.includes(id))
+    if (gesture) return reveal(state, { kind: "gesture", id: gesture }, now)
   }
   return state
 }
@@ -428,10 +455,45 @@ export function msUntilTeach(state: TeachState, now: number): number | null {
   if (state.session.pending && !validPending(state)) return 0
   const pending = validPending(state)
   const gestureWaiting =
-    state.gate.touch && state.gate.coachGestures && GESTURES.some((g) => !state.record.gesturesSeen.includes(g.id))
+    state.gate.touch && state.gate.coachGestures && CAMERA_GESTURES.some((id) => !state.record.gesturesSeen.includes(id))
   if (!pending && !gestureWaiting) return null
   if (state.session.lastShownAt == null) return 0
   return Math.max(0, HINT_GAP_MS - (now - state.session.lastShownAt))
+}
+
+export type Box = { left: number; top: number; width: number; height: number }
+
+/**
+ * Moves a hint chip off a rectangle (the minimap) without leaving the viewport.
+ * `x` and `y` are added to the chip's current left and top. Zero when they already miss.
+ */
+export function shiftClearOf(
+  chip: Box,
+  obstacle: Box | null,
+  viewport: { width: number; height: number },
+  gap = 8,
+): { x: number; y: number } {
+  if (!obstacle || chip.width <= 0 || chip.height <= 0) return { x: 0, y: 0 }
+  const hits = (dx: number, dy: number) => {
+    const left = chip.left + dx
+    const top = chip.top + dy
+    return left < obstacle.left + obstacle.width + gap && left + chip.width + gap > obstacle.left && top < obstacle.top + obstacle.height + gap && top + chip.height + gap > obstacle.top
+  }
+  const inside = (dx: number, dy: number) => {
+    const left = chip.left + dx
+    const top = chip.top + dy
+    return left >= gap && top >= gap && left + chip.width <= viewport.width - gap && top + chip.height <= viewport.height - gap
+  }
+  if (!hits(0, 0)) return { x: 0, y: 0 }
+  const candidates = [
+    { x: obstacle.left - gap - chip.width - chip.left, y: 0 },
+    { x: obstacle.left + obstacle.width + gap - chip.left, y: 0 },
+    { x: 0, y: obstacle.top - gap - chip.height - chip.top },
+  ]
+  const clear = candidates.find((c) => inside(c.x, c.y) && !hits(c.x, c.y))
+  if (clear) return clear
+  const above = candidates[2]
+  return inside(above.x, above.y) ? above : { x: 0, y: Math.min(0, above.y) }
 }
 
 export type GesturePhase = "down" | "move" | "up"
