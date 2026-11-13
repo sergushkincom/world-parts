@@ -192,6 +192,9 @@ export const STORAGE_KEYS = {
   selection: "world-parts.selection.v1",
   planHintSeen: "world-parts.plan-hint-seen.v1",
   concepts: "world-parts.concepts.v1",
+  /** First-visit orbit hint, dismissed after the first drag. */
+  orbitHintSeen: "world-parts.orbit-hint-seen.v1",
+  splatQuality: "world-parts.splat-quality.v1",
 } as const
 
 /** Grey steel cabinet on the back wall, right of the pegboard; the bench covers its lower right. */

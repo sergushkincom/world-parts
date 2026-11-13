@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { CrosshairIcon, SearchIcon, XIcon } from "lucide-react"
-import { COPY, OBJECT_PALETTE, type Equipment, type WorldObject } from "@/lib/data"
+import { ChevronDownIcon, ChevronUpIcon, CrosshairIcon, SearchIcon, Share2Icon, XIcon } from "lucide-react"
+import { COPY, OBJECT_PALETTE, ROOMS, type Equipment, type RoomId, type WorldObject } from "@/lib/data"
 import { formatCount } from "@/lib/geometry"
+import { copyText } from "@/lib/clipboard"
 import {
   binContents,
   binOf,
@@ -22,7 +23,9 @@ import { DRAWABLE, useWorld, type CardTab } from "@/components/world/world-provi
 import { StatusBadge } from "@/components/world/status-badge"
 import { MatchBadge } from "@/components/parts/match-badge"
 import { Button } from "@/components/ui/button"
+import { Kbd } from "@/components/ui/kbd"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" })
 
@@ -40,8 +43,6 @@ function Facts({ rows }: { rows: [label: string, value: React.ReactNode][] }) {
 }
 
 function ObjectTab({ object }: { object: WorldObject }) {
-  const { select, frame } = useWorld()
-  const drawable = DRAWABLE.includes(object.status)
   return (
     <div className="flex flex-col gap-3">
       <Facts
@@ -56,20 +57,16 @@ function ObjectTab({ object }: { object: WorldObject }) {
       {object.status === "failed" && object.failReason && (
         <p className="rounded-md bg-status-failed/10 px-2 py-1.5 text-label text-status-failed">{object.failReason}</p>
       )}
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={!drawable}
-        onClick={() => {
-          select(object.id, "only")
-          frame(object.id)
-        }}
-      >
-        <CrosshairIcon aria-hidden data-icon="inline-start" />
-        Frame in 3D
-      </Button>
     </div>
   )
+}
+
+function locationLine(object: WorldObject) {
+  const equipment = equipmentFor(object)
+  const roomId = equipment?.room ?? object.room
+  const room = roomId ? ROOMS.find((r) => r.id === roomId)?.name : null
+  const place = equipment?.assetId ? `${equipment.name} ${equipment.assetId}` : object.name
+  return room ? `${room} · ${place}` : place
 }
 
 type PartTabProps = {
@@ -237,23 +234,83 @@ function useDrawerEscape(open: boolean, close: () => void) {
 }
 
 /** Floating card for one object: what SAM3 made of it, and the parts in or stored in it. */
-export function ObjectCard({ part = null, q = "" }: { part?: string | null; q?: string }) {
+export function ObjectCard({
+  part = null,
+  q = "",
+  room,
+  onNotify,
+}: {
+  part?: string | null
+  q?: string
+  room: RoomId
+  onNotify: (message: string) => void
+}) {
   const { state } = useWorld()
   const object = state.objects.find((o) => o.id === state.cardId)
   if (!object) return null
-  return <ObjectCardBody key={object.id} object={object} part={part} q={q} />
+  return <ObjectCardBody key={object.id} object={object} part={part} q={q} room={room} onNotify={onNotify} />
 }
 
-function ObjectCardBody({ object, part, q }: { object: WorldObject; part: string | null; q: string }) {
-  const { state, closeCard, setCardTab } = useWorld()
+function ObjectCardBody({
+  object,
+  part,
+  q,
+  room,
+  onNotify,
+}: {
+  object: WorldObject
+  part: string | null
+  q: string
+  room: RoomId
+  onNotify: (message: string) => void
+}) {
+  const { state, closeCard, setCardTab, select, frame, openCard } = useWorld()
+  const [expanded, setExpanded] = React.useState(false)
   const [drawerPart, setDrawerPart] = React.useState<string | null>(null)
   const closeDrawer = React.useCallback(() => setDrawerPart(null), [])
   useDrawerEscape(drawerPart !== null, closeDrawer)
+
+  React.useEffect(() => {
+    if (!expanded || drawerPart) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      if (document.querySelector("[role='menu'], [role='alertdialog'], [role='dialog']")) return
+      e.preventDefault()
+      e.stopPropagation()
+      setExpanded(false)
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [expanded, drawerPart])
 
   const equipment = equipmentFor(object)
   const isStore = Boolean(equipment?.bins?.length)
   const color = OBJECT_PALETTE[object.colorIndex % OBJECT_PALETTE.length]
   const tabProps: PartTabProps = { object, equipment, highlight: part, q, onOpenPart: setDrawerPart }
+  const drawable = DRAWABLE.includes(object.status)
+  const index = state.objects.findIndex((o) => o.id === object.id)
+  const location = locationLine(object)
+
+  const stepTo = (delta: number) => {
+    const next = state.objects[index + delta]
+    if (!next) return
+    select(next.id, "only")
+    openCard(next.id, state.cardTab)
+    if (DRAWABLE.includes(next.status)) frame(next.id)
+  }
+
+  const goTo = () => {
+    select(object.id, "only")
+    if (drawable) frame(object.id)
+  }
+
+  const share = async () => {
+    const params = new URLSearchParams()
+    params.set("room", room)
+    params.set("object", object.concept)
+    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`
+    onNotify((await copyText(url)) ? "Link copied" : "Couldn't copy link")
+  }
 
   return (
     <>
@@ -262,22 +319,111 @@ function ObjectCardBody({ object, part, q }: { object: WorldObject; part: string
       data-object-card
       className={cn(
         "z-30 flex flex-col overflow-hidden border bg-popover text-popover-foreground shadow-2xl",
-        "panel:absolute panel:top-14 panel:right-3 panel:max-h-[calc(100%-4.5rem)] panel:w-80 panel:rounded-lg",
-        "max-panel:fixed max-panel:inset-x-0 max-panel:bottom-0 max-panel:max-h-[70dvh] max-panel:rounded-t-xl max-panel:border-b-0",
+        "panel:absolute panel:top-3 panel:right-3 panel:bottom-auto panel:max-h-[calc(100%-5.5rem)] panel:w-80 panel:rounded-lg",
+        "max-panel:absolute max-panel:inset-x-2 max-panel:z-30 max-panel:rounded-xl",
+        "max-panel:bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.75rem))]",
+        expanded ? "max-panel:max-h-[calc(100%-6rem)]" : "",
       )}
     >
       <header className="flex items-center gap-2 border-b px-3 py-2">
         <span aria-hidden className="size-2.5 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
-        <h2 className="min-w-0 flex-1 truncate text-row font-semibold">{object.name}</h2>
-        <StatusBadge object={object} tabIndex={-1} />
-        <Button variant="ghost" size="icon-xs" aria-label="Close card" aria-keyshortcuts="Escape" onClick={closeCard}>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-row font-semibold">{object.name}</h2>
+          <p className="truncate text-label text-muted-foreground max-panel:hidden">{location}</p>
+        </div>
+        <span className="max-panel:hidden">
+          <StatusBadge object={object} tabIndex={-1} />
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-expanded={expanded}
+          aria-label={expanded ? "Collapse details" : "Expand details"}
+          className="size-11 panel:hidden"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? <ChevronDownIcon aria-hidden /> : <ChevronUpIcon aria-hidden />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Close card"
+          aria-keyshortcuts="Escape"
+          className="max-panel:size-11 panel:size-8"
+          onClick={closeCard}
+        >
           <XIcon aria-hidden />
         </Button>
       </header>
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2">
+        <p className={cn("w-full truncate text-label text-muted-foreground panel:hidden", !expanded && "max-panel:hidden")}>
+          {location}
+        </p>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!drawable}
+              aria-keyshortcuts="g"
+              className="max-panel:h-11"
+              onClick={goTo}
+            >
+              <CrosshairIcon aria-hidden data-icon="inline-start" />
+              Go to
+              <Kbd className="max-panel:hidden">G</Kbd>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Go to · G</TooltipContent>
+        </Tooltip>
+        <div className={cn("flex items-center gap-1.5", !expanded && "max-panel:hidden")}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Previous object"
+              aria-keyshortcuts="ArrowUp"
+              disabled={index <= 0}
+              className="max-panel:size-11"
+              onClick={() => stepTo(-1)}
+            >
+              <ChevronUpIcon aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Previous · ↑</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Next object"
+              aria-keyshortcuts="ArrowDown"
+              disabled={index < 0 || index >= state.objects.length - 1}
+              className="max-panel:size-11"
+              onClick={() => stepTo(1)}
+            >
+              <ChevronDownIcon aria-hidden />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Next · ↓</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" size="sm" className="max-panel:h-11" onClick={() => void share()}>
+              <Share2Icon aria-hidden data-icon="inline-start" />
+              Share
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Share</TooltipContent>
+        </Tooltip>
+        </div>
+      </div>
       <Tabs
         value={state.cardTab}
         onValueChange={(v) => setCardTab(v as CardTab)}
-        className="min-h-0 gap-0 overflow-y-auto overscroll-contain p-3"
+        className={cn("min-h-0 gap-0 overflow-y-auto overscroll-contain p-3", !expanded && "max-panel:hidden")}
       >
         <TabsList className="mb-3 w-full">
           <TabsTrigger value="object">Object</TabsTrigger>
