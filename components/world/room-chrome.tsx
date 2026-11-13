@@ -97,6 +97,7 @@ export function RoomChrome({
         </div>
       </div>
 
+      {/* Full-size layer so the card can be dragged in the room view. It starts under the breadcrumb. */}
       <div className="pointer-events-none absolute inset-0 z-20">
         <RoomMinimap
           ref={minimapRef}
