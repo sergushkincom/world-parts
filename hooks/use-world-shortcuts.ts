@@ -4,7 +4,7 @@ import * as React from "react"
 import { GAUSSIAN_VIEWS } from "@/lib/data"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 
-const SKIP_INSIDE = "input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog'], [role='alertdialog'], [role='slider']"
+const SKIP_INSIDE = "input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog'], [role='alertdialog'], [role='slider'], [data-minimap-handle]"
 
 /**
  * Global keys: G goes to the open object, otherwise segments, / focuses search,

@@ -37,6 +37,14 @@ function keyGroups(): Group[] {
       ],
     },
     {
+      title: "Minimap",
+      rows: [
+        { action: "Nudge the plan, handle focused", how: keys("↑", "↓", "←", "→") },
+        { action: "Nudge the plan further", how: keys("Shift", "↑") },
+        { action: "Back under the breadcrumb", how: keys("Enter") },
+      ],
+    },
+    {
       title: "View",
       rows: [
         { action: "Orbit", how: "Drag" },
@@ -67,6 +75,8 @@ function gestureGroups(): Group[] {
         { action: "Rotate", how: "One finger" },
         { action: "Pan", how: "Two fingers" },
         { action: "Zoom", how: "Pinch" },
+        { action: "Move the plan", how: "Drag its header" },
+        { action: "Show or hide the plan", how: "The map button" },
       ],
     },
   ]

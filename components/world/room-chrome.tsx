@@ -53,7 +53,10 @@ export function RoomChrome({
 
   return (
     <>
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div
+        data-room-toolbar
+        className="pointer-events-none absolute inset-x-0 top-0 z-30 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]"
+      >
         <div className="panel:grid panel:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] panel:items-start panel:gap-3">
           <div
             className={cn(
@@ -94,7 +97,8 @@ export function RoomChrome({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute top-[calc(4.25rem+env(safe-area-inset-top))] left-3 z-20">
+      {/* Full-size layer so the card can be dragged in the room view. It starts under the breadcrumb. */}
+      <div className="pointer-events-none absolute inset-0 z-20">
         <RoomMinimap
           ref={minimapRef}
           roomId={roomId}

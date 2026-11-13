@@ -82,6 +82,7 @@ export function ViewPill({
       <div
         role="toolbar"
         aria-label="View controls"
+        data-view-pill
         className="pointer-events-auto absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full bg-black/75 p-1 text-scene-ink shadow-lg backdrop-blur-sm"
       >
         <div role="group" aria-label="Room view" className="flex items-center">

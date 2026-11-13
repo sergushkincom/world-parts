@@ -1,4 +1,4 @@
-import { PLAN_CALIBRATION, ROOMS, SCENE, type Point, type RoomId } from "@/lib/data"
+import { PLAN, PLAN_CALIBRATION, ROOMS, SCENE, type Point, type RoomId } from "@/lib/data"
 import { STILL_CAMERA } from "@/lib/splat-mask"
 
 /** Where the camera is and where it looks, on the floor (world x, z). `hfov` in radians. */
@@ -66,4 +66,27 @@ export function roomViewBox(roomId: RoomId, margin = 40): [number, number, numbe
   const x = Math.min(...xs) - margin
   const y = Math.min(...ys) - margin
   return [x, y, Math.max(...xs) - Math.min(...xs) + margin * 2, Math.max(...ys) - Math.min(...ys) + margin * 2]
+}
+
+const clampNum = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+/**
+ * Desktop minimap crop. Zoom 1 is the whole plan; higher values close in on the room and keep the
+ * plan's aspect ratio, so resizing the card and zooming the drawing are independent. The window stays
+ * inside the drawing.
+ */
+export function zoomedPlanViewBox(roomId: RoomId, zoom: number): [number, number, number, number] {
+  const full: [number, number, number, number] = [0, 0, PLAN.width, PLAN.height]
+  if (!(zoom > 1)) return full
+  const room = ROOMS.find((r) => r.id === roomId)
+  if (!room) return full
+  const xs = room.polygon.map((p) => p[0])
+  const ys = room.polygon.map((p) => p[1])
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2
+  const w = PLAN.width / zoom
+  const h = PLAN.height / zoom
+  const x = clampNum(cx - w / 2, 0, Math.max(0, PLAN.width - w))
+  const y = clampNum(cy - h / 2, 0, Math.max(0, PLAN.height - h))
+  return [x, y, w, h]
 }
