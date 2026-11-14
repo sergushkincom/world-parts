@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Typecheck, lint, production build
+    name: Typecheck, lint, test, production build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -49,6 +49,9 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
+
+      - name: Unit tests
+        run: pnpm test
 
       - name: Production build
         run: pnpm run build

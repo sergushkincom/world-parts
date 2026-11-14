@@ -7,6 +7,7 @@ import { bounds, centroid, containMapping, formatCount, toPointsAttr } from "@/l
 import { cn } from "@/lib/utils"
 import { useElementSize } from "@/hooks/use-element-size"
 import { useCardRect, type Rect } from "@/hooks/use-card-inset"
+import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { DRAWABLE, useWorld, type SelectMode } from "@/components/world/world-provider"
 import { navigate } from "@/hooks/use-hash-route"
 
@@ -31,6 +32,7 @@ function clampPan(t: number, s: number, imgStart: number, imgEnd: number, view: 
 
 export function Scene() {
   const { state, select, hover, clearSelection, openCard } = useWorld()
+  const { notePointer } = useShortcutLearning()
   const containerRef = React.useRef<HTMLDivElement>(null)
   const imgRef = React.useRef<HTMLImageElement>(null)
   const { width, height } = useElementSize(containerRef)
@@ -117,7 +119,11 @@ export function Scene() {
       ref={containerRef}
       className="relative size-full overflow-hidden bg-scene"
       onClick={(e) => {
-        if (e.target === e.currentTarget || (e.target as HTMLElement | SVGElement).dataset?.sceneBackdrop !== undefined) clearSelection()
+        const backdrop = e.target === e.currentTarget || (e.target as HTMLElement | SVGElement).dataset?.sceneBackdrop !== undefined
+        if (!backdrop) return
+        const hadTarget = state.selection.length > 0 || state.framedId != null
+        clearSelection()
+        if (hadTarget && !state.cardId && activatedByPointer(e)) notePointer("escape")
       }}
     >
       <div
@@ -201,6 +207,7 @@ export function Scene() {
                   const mode = modeFromEvent(e)
                   select(o.id, mode)
                   if (mode === "only") openCard(o.id, "part")
+                  if (mode === "range" && activatedByPointer(e)) notePointer("extend")
                 }}
               >
                 <title>{o.name}</title>
@@ -254,6 +261,7 @@ export function Scene() {
                   const mode = modeFromEvent(e)
                   select(o.id, mode)
                   if (mode === "only") openCard(o.id, "part")
+                  if (mode === "range" && activatedByPointer(e)) notePointer("extend")
                 }}
                 className={cn(
                   "pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border bg-black/75 px-2 py-0.5 text-label font-medium text-scene-ink shadow-sm backdrop-blur-sm",

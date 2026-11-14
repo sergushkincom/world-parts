@@ -6,6 +6,7 @@ import { PLAN, ROOMS, STORAGE_KEYS, VIEWPOINTS, type Point, type RoomId } from "
 import { conePath, planMapper, roomViewBox, STILL_VIEW, zoomedPlanViewBox, type CameraView } from "@/lib/minimap"
 import { readJSON, writeJSON } from "@/lib/storage"
 import { cn } from "@/lib/utils"
+import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { BLUEPRINT, planPoints } from "@/components/plant/floor-plan"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -155,6 +156,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   const map = React.useMemo(() => planMapper(roomId), [roomId])
   const wide = useWide()
   const id = React.useId().replace(/:/g, "")
+  const { notePointer, noteKey, noteGesture, offerGesture, touch } = useShortcutLearning()
 
   const [layout, setLayout] = React.useState<MinimapLayout>(FALLBACK_LAYOUT)
   const layoutRef = React.useRef(layout)
@@ -237,6 +239,11 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     if (!ready || !persist.current || drag.current) return
     writeJSON(STORAGE_KEYS.minimap, layoutRef.current)
   }, [ready, layout])
+
+  React.useEffect(() => {
+    if (!ready) return
+    offerGesture(layout.collapsed ? "map-toggle" : "map-move")
+  }, [ready, layout.collapsed, offerGesture])
 
   React.useEffect(() => {
     if (layout.collapsed && focusCollapsed.current) {
@@ -322,6 +329,10 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     const d = drag.current
     if (!d || d.id !== e.pointerId) return
     suppressClick.current = d.moved
+    if (d.moved) {
+      if (e.pointerType === "touch" || e.pointerType === "pen") noteGesture("map-move")
+      else notePointer("minimap-move")
+    }
     drag.current = null
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
     writeJSON(STORAGE_KEYS.minimap, layoutRef.current)
@@ -343,6 +354,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
     e.preventDefault()
     e.stopPropagation()
     moveTo(layoutRef.current.x + delta[0], layoutRef.current.y + delta[1], true)
+    noteKey(e.shiftKey ? "minimap-further" : "minimap-move")
     return true
   }
 
@@ -389,6 +401,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
             aria-label={`Show the ${room.name} floor plan. Arrow keys move it.`}
             aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
             aria-expanded={false}
+            data-minimap-card
             className="pointer-events-auto absolute z-10 grid size-11 cursor-grab touch-none place-items-center rounded-full text-white shadow-lg outline-none hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
             style={{ ...positionStyle, touchAction: "none" }}
             onPointerDown={(e) => {
@@ -410,6 +423,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
             onLostPointerCapture={endDrag}
             onClick={(e) => {
               if (!suppressClick.current) {
+                if (touch) noteGesture("map-toggle")
                 commit({ ...layoutRef.current, collapsed: false }, true)
                 return
               }
@@ -431,6 +445,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
   return (
     <div
       ref={setCard}
+      data-minimap-card
       className="pointer-events-auto absolute z-10 flex w-[260px] touch-none flex-col gap-1.5 rounded-xl border border-white/16 p-2.5 text-white shadow-lg select-none max-panel:w-[112px] max-panel:gap-1 max-panel:rounded-lg max-panel:p-2"
       style={cardStyle}
       onPointerDown={blockScenePointer}
@@ -464,6 +479,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
               onDoubleClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
+                if (e.detail > 0) notePointer("minimap-home")
                 resetPosition()
               }}
               onKeyDown={(e) => {
@@ -471,6 +487,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
                 if (e.key !== "Enter" && e.key !== " ") return
                 e.preventDefault()
                 e.stopPropagation()
+                if (e.key === "Enter") noteKey("minimap-home")
                 resetPosition()
               }}
             >
@@ -486,6 +503,7 @@ export const RoomMinimap = React.forwardRef<MinimapHandle, Props>(function RoomM
           aria-label="Collapse floor plan"
           aria-expanded
           onClick={() => {
+            if (touch) noteGesture("map-toggle")
             focusCollapsed.current = true
             commit({ ...layoutRef.current, collapsed: true }, true)
           }}

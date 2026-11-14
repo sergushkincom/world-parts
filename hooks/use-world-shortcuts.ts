@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { GAUSSIAN_VIEWS } from "@/lib/data"
+import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 
 const SKIP_INSIDE = "input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog'], [role='alertdialog'], [role='slider'], [data-minimap-handle]"
@@ -17,6 +18,9 @@ export function useWorldShortcuts({ onEscapeRoot }: { onEscapeRoot?: () => void 
   worldRef.current = world
   const escapeRootRef = React.useRef(onEscapeRoot)
   escapeRootRef.current = onEscapeRoot
+  const { noteKey } = useShortcutLearning()
+  const noteKeyRef = React.useRef(noteKey)
+  noteKeyRef.current = noteKey
 
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -38,18 +42,19 @@ export function useWorldShortcuts({ onEscapeRoot }: { onEscapeRoot?: () => void 
           if (open && DRAWABLE.includes(open.status)) {
             select(open.id, "only")
             frame(open.id)
-            return
-          }
-          segmentDraft()
+          } else segmentDraft()
+          noteKeyRef.current("go")
           return
         }
         case "/":
           e.preventDefault()
           conceptInputRef.current?.focus()
           conceptInputRef.current?.select()
+          noteKeyRef.current("search")
           return
         case "Escape":
           e.preventDefault()
+          noteKeyRef.current("escape")
           if (state.cardId) closeCard()
           else if (state.selection.length || state.framedId) clearSelection()
           else escapeRootRef.current?.()
@@ -68,6 +73,7 @@ export function useWorldShortcuts({ onEscapeRoot }: { onEscapeRoot?: () => void 
           if (e.shiftKey) {
             select(ids[next], "range")
             focusRow(ids[next])
+            noteKeyRef.current("extend")
             return
           }
           if (cardOpen) {
@@ -76,15 +82,18 @@ export function useWorldShortcuts({ onEscapeRoot }: { onEscapeRoot?: () => void 
             openCard(ids[next], state.cardTab)
             if (nextObject && DRAWABLE.includes(nextObject.status)) frame(ids[next])
             focusRow(ids[next])
+            noteKeyRef.current("prev-next")
             return
           }
           focusRow(ids[next])
+          noteKeyRef.current("prev-next")
           return
         }
         case " ":
           if (onBody && state.activeId) {
             e.preventDefault()
             select(state.activeId, "toggle")
+            noteKeyRef.current("toggle")
           }
           return
         default: {
@@ -92,6 +101,7 @@ export function useWorldShortcuts({ onEscapeRoot }: { onEscapeRoot?: () => void 
           if (view && state.selection.length) {
             e.preventDefault()
             setView(view.id)
+            noteKeyRef.current(view.id)
           }
         }
       }

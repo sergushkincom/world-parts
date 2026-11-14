@@ -18,6 +18,7 @@ import {
 } from "@/lib/parts"
 import { cn } from "@/lib/utils"
 import { navigate, type Route } from "@/hooks/use-hash-route"
+import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { PartDrawer } from "@/components/parts/part-drawer"
 import { DRAWABLE, useWorld, type CardTab } from "@/components/world/world-provider"
 import { StatusBadge } from "@/components/world/status-badge"
@@ -265,6 +266,7 @@ function ObjectCardBody({
   onNotify: (message: string) => void
 }) {
   const { state, closeCard, setCardTab, select, frame, openCard } = useWorld()
+  const { notePointer } = useShortcutLearning()
   const [expanded, setExpanded] = React.useState(false)
   const [drawerPart, setDrawerPart] = React.useState<string | null>(null)
   const closeDrawer = React.useCallback(() => setDrawerPart(null), [])
@@ -350,7 +352,10 @@ function ObjectCardBody({
           aria-label="Close card"
           aria-keyshortcuts="Escape"
           className="max-panel:size-11 panel:size-8"
-          onClick={closeCard}
+          onClick={(event) => {
+            if (activatedByPointer(event)) notePointer("escape")
+            closeCard()
+          }}
         >
           <XIcon aria-hidden />
         </Button>
@@ -367,7 +372,10 @@ function ObjectCardBody({
               disabled={!drawable}
               aria-keyshortcuts="g"
               className="max-panel:h-11"
-              onClick={goTo}
+              onClick={(event) => {
+                if (activatedByPointer(event)) notePointer("go")
+                goTo()
+              }}
             >
               <CrosshairIcon aria-hidden data-icon="inline-start" />
               Go to
@@ -386,7 +394,10 @@ function ObjectCardBody({
               aria-keyshortcuts="ArrowUp"
               disabled={index <= 0}
               className="max-panel:size-11"
-              onClick={() => stepTo(-1)}
+              onClick={(event) => {
+                if (activatedByPointer(event)) notePointer("prev-next")
+                stepTo(-1)
+              }}
             >
               <ChevronUpIcon aria-hidden />
             </Button>
@@ -402,7 +413,10 @@ function ObjectCardBody({
               aria-keyshortcuts="ArrowDown"
               disabled={index < 0 || index >= state.objects.length - 1}
               className="max-panel:size-11"
-              onClick={() => stepTo(1)}
+              onClick={(event) => {
+                if (activatedByPointer(event)) notePointer("prev-next")
+                stepTo(1)
+              }}
             >
               <ChevronDownIcon aria-hidden />
             </Button>

@@ -2,6 +2,7 @@
 
 import { BoxesIcon } from "lucide-react"
 import { COPY } from "@/lib/data"
+import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { useWorld } from "@/components/world/world-provider"
 import { ObjectRow } from "@/components/world/object-row"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export function ObjectList() {
   const { state, setSelection, clearSelection, loadSeed } = useWorld()
+  const { notePointer } = useShortcutLearning()
   const total = state.objects.length
   const selectedCount = state.selection.length
   const allChecked = total > 0 && selectedCount === total
@@ -31,7 +33,15 @@ export function ObjectList() {
         {selectedCount > 0 && (
           <div className="ml-auto flex items-center gap-1">
             <span className="text-label tabular-nums text-muted-foreground">{selectedCount} selected</span>
-            <Button variant="ghost" size="xs" onClick={clearSelection} aria-keyshortcuts="Escape">
+            <Button
+              variant="ghost"
+              size="xs"
+              aria-keyshortcuts="Escape"
+              onClick={(event) => {
+                if (activatedByPointer(event)) notePointer("escape")
+                clearSelection()
+              }}
+            >
               Clear
             </Button>
           </div>
