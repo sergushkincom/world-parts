@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { LIVE_WORLD, STORAGE_KEYS, VIEWPOINTS, type RoomId } from "@/lib/data"
+import { DOORS, ROOMS, STORAGE_KEYS, VIEWPOINTS, isScanned, worldOf, type RoomId, type WorldObject } from "@/lib/data"
 import { planMapper } from "@/lib/minimap"
 import { readJSON, writeJSON } from "@/lib/storage"
 import { isSplatQuality, pixelRatioFor, type SplatQuality } from "@/lib/splat-quality"
@@ -20,6 +20,11 @@ type ViewMode = "still" | "live"
 
 type RoomRoute = { room: RoomId; object: string | null; part?: string | null; q: string }
 
+/** The object's name in the URL: its concept when that is unique in the room ("pump"), else its id ("obj-cnc-03"). */
+export function objectKey(o: WorldObject, roomObjects: WorldObject[]) {
+  return roomObjects.filter((x) => x.concept === o.concept).length > 1 ? o.id : o.concept
+}
+
 /** Keeps `?room=…&object=…` and the open card in step, in both directions. */
 function useObjectInHash(route: RoomRoute) {
   const { state, select, frame, openCard, setDraft } = useWorld()
@@ -34,7 +39,8 @@ function useObjectInHash(route: RoomRoute) {
       return
     }
     if (!state.hydrated || appliedRef.current === route.object) return
-    const object = state.objects.find((o) => o.concept === route.object || o.id === route.object)
+    if (state.roomId !== route.room) return
+    const object = state.objects.find((o) => o.id === route.object || o.concept === route.object)
     if (!object) return
     appliedRef.current = route.object
     if (state.cardId === object.id) return
@@ -42,7 +48,7 @@ function useObjectInHash(route: RoomRoute) {
     if (DRAWABLE.includes(object.status)) frame(object.id)
     openCard(object.id, "part")
     if (route.q) setDraft(route.q)
-  }, [state.hydrated, state.objects, state.cardId, route.object, route.q, select, frame, openCard, setDraft])
+  }, [state.hydrated, state.roomId, state.objects, state.cardId, route.room, route.object, route.q, select, frame, openCard, setDraft])
 
   React.useEffect(() => {
     if (!state.hydrated) return
@@ -52,10 +58,11 @@ function useObjectInHash(route: RoomRoute) {
     }
     if (lastCardRef.current === state.cardId) return
     lastCardRef.current = state.cardId
-    const concept = state.objects.find((o) => o.id === state.cardId)?.concept ?? null
-    appliedRef.current = concept
+    const open = state.objects.find((o) => o.id === state.cardId)
+    const key = open ? objectKey(open, state.objects) : null
+    appliedRef.current = key
     const { room, q, object, part } = routeRef.current
-    navigate({ level: "room", room, object: concept, part: concept === object ? part : null, q }, { replace: true })
+    navigate({ level: "room", room, object: key, part: key === object ? part : null, q }, { replace: true })
   }, [state.hydrated, state.cardId, state.objects])
 }
 
@@ -88,6 +95,34 @@ function useSplatQuality() {
   return [quality, update] as const
 }
 
+/** The way out of a room, and in the corridor the doors: buttons, since a room's own door is behind its camera. */
+function DoorButtons({ room, live }: { room: RoomId; live: boolean }) {
+  const doors = (DOORS[room] ?? []).filter((d) => live || !d.polygon)
+  if (!doors.length) return null
+  return (
+    <nav
+      aria-label="Doors"
+      className="absolute right-3 bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.75rem))] z-20 flex max-w-[60%] flex-wrap justify-end gap-1.5"
+    >
+      {doors.map((d) => {
+        const open = isScanned(d.to)
+        return (
+          <button
+            key={d.to}
+            type="button"
+            disabled={!open}
+            title={open ? undefined : "Not scanned yet"}
+            onClick={() => navigate({ level: "room", room: d.to, object: null, q: "" })}
+            className="rounded-full bg-black/75 px-3 py-1.5 text-label font-medium text-scene-ink shadow-lg backdrop-blur-sm hover:bg-black/90 disabled:opacity-50"
+          >
+            {open ? `→ ${d.label}` : `${d.label} · not scanned`}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
 export function RoomView({ route }: { route: RoomRoute }) {
   return (
     <ShortcutLearningProvider>
@@ -97,11 +132,16 @@ export function RoomView({ route }: { route: RoomRoute }) {
 }
 
 function RoomViewBody({ route }: { route: RoomRoute }) {
+  const { setRoom, state, frame } = useWorld()
+  // Before anything reads `state.objects`: they are this room's objects only.
+  React.useLayoutEffect(() => {
+    setRoom(route.room)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setRoom is a new function each render; the room is the key
+  }, [route.room])
   useWorldShortcuts({ onEscapeRoot: () => navigate({ level: "plant", q: route.q }) })
   const { noteKey } = useShortcutLearning()
   useObjectInHash(route)
   const [mode, setMode] = React.useState<ViewMode>("still")
-  const { state, frame } = useWorld()
   const splatRef = React.useRef<SplatViewHandle>(null)
   const minimapRef = React.useRef<MinimapHandle>(null)
   const [liveReady, setLiveReady] = React.useState(false)
@@ -134,6 +174,12 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
     return () => window.removeEventListener("keydown", onKey)
   }, [mode, frame, noteKey])
 
+  // A new room starts a new walk.
+  React.useEffect(() => {
+    setViewpoint(null)
+    setVisited([])
+  }, [route.room])
+
   // Find takes over the camera; the walk starts again from wherever Find left it.
   React.useEffect(() => setViewpoint(null), [state.framedId, mode])
 
@@ -147,13 +193,14 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
 
   const map = planMapper(route.room)
   const framed = state.objects.find((o) => o.id === state.framedId)
-  const target = framed ? LIVE_WORLD.poses[framed.id]?.target : undefined
+  const target = framed ? worldOf(route.room).poses[framed.id]?.target : undefined
+  const roomName = ROOMS.find((r) => r.id === route.room)?.name ?? "room"
   const find = framed && target && map ? { name: framed.name, at: map.inRoom(target[0], target[2]) } : null
 
   return (
     <div className="flex h-full flex-col panel:flex-row">
       <main className="relative min-h-0 flex-1">
-        <h1 className="sr-only">world-parts — workshop, segmented scene</h1>
+        <h1 className="sr-only">{`world-parts — ${roomName.toLowerCase()}, segmented scene`}</h1>
         <RoomChrome
           roomId={route.room}
           q={route.q}
@@ -175,6 +222,7 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
         />
         {mode === "live" ? (
           <SplatView
+            key={route.room}
             ref={splatRef}
             pixelRatio={pixelRatioFor(quality)}
             onFallback={() => setMode("still")}
@@ -185,6 +233,7 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
         ) : (
           <Scene />
         )}
+        <DoorButtons room={route.room} live={mode === "live"} />
         <ObjectCard part={route.part ?? null} q={route.q} room={route.room} onNotify={notify} />
         {toast && (
           <p

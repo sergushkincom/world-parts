@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { CheckIcon } from "lucide-react"
-import { COPY, SUGGESTED_CONCEPTS } from "@/lib/data"
+import { COPY, ROOM_CONCEPTS, SUGGESTED_CONCEPTS } from "@/lib/data"
 import { isSearchable, type WorldHit } from "@/lib/search"
 import { cn } from "@/lib/utils"
 import { useWorldHits } from "@/hooks/use-world-hits"
@@ -157,7 +157,7 @@ export function ConceptInput() {
           "max-panel:data-[end=true]:[mask-image:none]",
         )}
       >
-        {SUGGESTED_CONCEPTS.map((concept) => {
+        {(ROOM_CONCEPTS[state.roomId] ?? SUGGESTED_CONCEPTS).map((concept) => {
           const existing = state.objects.find((o) => o.concept === concept)
           const done = existing && DRAWABLE.includes(existing.status)
           const pending = existing && (existing.status === "queued" || existing.status === "segmenting")

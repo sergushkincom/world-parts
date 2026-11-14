@@ -7,8 +7,8 @@ import { Kbd } from "@/components/ui/kbd"
 import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
 
 /**
- * The chip's home is centered above the pill. If the minimap card covers that spot,
- * the whole slot slides aside so the tip stays readable and the map stays put.
+ * The chip's home is centered above the pill. If the minimap or a door button covers
+ * that spot, the slot slides aside so the tip stays readable and those controls stay put.
  */
 export function HintSlot({ active, children }: { active: boolean; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDivElement>(null)
@@ -23,8 +23,7 @@ export function HintSlot({ active, children }: { active: boolean; children: Reac
     }
     const place = () => {
       const slot = ref.current
-      const card = document.querySelector("[data-minimap-card]")
-      if (!slot || slot.offsetWidth === 0 || !card) {
+      if (!slot || slot.offsetWidth === 0) {
         if (shift.current.x !== 0 || shift.current.y !== 0) {
           shift.current = { x: 0, y: 0 }
           setOffset({ x: 0, y: 0 })
@@ -32,20 +31,28 @@ export function HintSlot({ active, children }: { active: boolean; children: Reac
         return
       }
       const rect = slot.getBoundingClientRect()
-      const bounds = card.getBoundingClientRect()
-      const next = shiftClearOf(
-        {
-          left: rect.left - shift.current.x,
-          top: rect.top - shift.current.y,
-          width: rect.width,
-          height: rect.height,
-        },
-        { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height },
-        { width: window.innerWidth, height: window.innerHeight },
-      )
-      if (next.x === shift.current.x && next.y === shift.current.y) return
-      shift.current = next
-      setOffset(next)
+      const viewport = { width: window.innerWidth, height: window.innerHeight }
+      let cursor = {
+        left: rect.left - shift.current.x,
+        top: rect.top - shift.current.y,
+        width: rect.width,
+        height: rect.height,
+      }
+      let dx = 0
+      let dy = 0
+      for (const selector of ["[data-minimap-card]", "[aria-label='Doors']"]) {
+        const node = document.querySelector(selector)
+        if (!node) continue
+        const bounds = node.getBoundingClientRect()
+        if (bounds.width === 0 || bounds.height === 0) continue
+        const step = shiftClearOf(cursor, { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height }, viewport)
+        dx += step.x
+        dy += step.y
+        cursor = { ...cursor, left: cursor.left + step.x, top: cursor.top + step.y }
+      }
+      if (dx === shift.current.x && dy === shift.current.y) return
+      shift.current = { x: dx, y: dy }
+      setOffset(shift.current)
     }
     place()
     const id = window.setInterval(place, 200)

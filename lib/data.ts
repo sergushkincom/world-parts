@@ -40,43 +40,86 @@ export interface ServerTier {
   description: string
 }
 
-/** Scene coordinate space. Polygons are authored in this box and scaled like object-fit: cover. */
+/**
+ * Still-frame coordinate space, shared by every room: all stills are 16:9 and polygons are authored in this box,
+ * then scaled like object-fit: cover. Each room's image lives in WORLDS.
+ */
 export const SCENE = {
-  imageSrc: "/scene.jpg",
   width: 2048,
   height: 1152,
-  alt: "Still frame of a factory workshop interior",
-} as const
-
-/**
- * Live 3D: the same SpAItial world as the still frame, exported as SOG.
- * Committed in public/splats; NEXT_PUBLIC_SPLAT_URL can point at another world. Camera poses are measured by hand in the viewer.
- */
-export const LIVE_WORLD = {
-  src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
-  sizeLabel: "24 MB",
-  /** SpAItial exports are already y-up; kept as a knob for other sources. */
-  rotation: [0, 0, 0] as [number, number, number],
-  home: { position: [0, 0, 0], target: [0, 0, -1] } as CameraPose,
-  /** With the card open, turn the camera right by this many radians (~17°) so the object clears the card. */
-  cardTurn: 0.3,
-  /**
-   * Where "Find" flies the camera, per object id. Objects without a pose keep the current view.
-   * Targets: splat centers inside each object's still-frame polygon (nearest quarter by depth),
-   * projected with the still's camera (origin, looking −Z, 60° vertical FOV). Pump and cabinet framed by hand.
-   */
-  poses: {
-    "obj-pump": { target: [-0.66, -0.55, -4.56], position: [0.31, -0.37, -2.69] },
-    "obj-cabinet": { target: [-0.11, 0.6, -12.71], position: [0.55, 0.37, -5.72] },
-    "obj-valve": { target: [2.41, 0.79, -4.58], position: [0.83, 0.53, -2.52] },
-    "obj-motor": { target: [1.84, -0.76, -5.3], position: [0.51, -0.32, -2.91] },
-    "obj-pallet": { target: [1.91, -1.03, -3.18], position: [0.55, -0.47, -1.75] },
-    "obj-extinguisher": { target: [-2.94, 0.73, -5.45], position: [-1.12, 0.5, -3] },
-    "obj-hose": { target: [1.53, 0.41, -1.88], position: [0.28, 0.31, -0.96] },
-  } as Record<string, CameraPose>,
 } as const
 
 export type CameraPose = { position: [number, number, number]; target: [number, number, number] }
+
+/**
+ * One room's 3D capture: the still frame and the live SpAItial world (SOG), committed in public/.
+ * Every world is a SpAItial text-to-world export, so the still's camera sits at the origin looking −Z in all of
+ * them and one calibration (STILL_CAMERA in splat-mask.ts, measured on the workshop) serves every room.
+ */
+export interface RoomWorld {
+  still: { src: string; alt: string }
+  splat: { src: string; sizeLabel: string }
+  /** SpAItial exports are already y-up; kept as a knob for other sources. */
+  rotation: [number, number, number]
+  home: CameraPose
+  /** With the card open, turn the camera right by this many radians (~17°) so the object clears the card. */
+  cardTurn: number
+  /**
+   * Where "Find" flies the camera, per object id. Objects without a pose fly to the centre of their lifted splats.
+   * Workshop targets: splat centres inside each object's still-frame polygon, pump and cabinet framed by hand.
+   */
+  poses: Record<string, CameraPose>
+}
+
+const HOME: CameraPose = { position: [0, 0, 0], target: [0, 0, -1] }
+
+export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
+  workshop: {
+    still: { src: "/scene.jpg", alt: "Still frame of a factory workshop interior" },
+    splat: { src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog", sizeLabel: "24 MB" },
+    rotation: [0, 0, 0],
+    home: HOME,
+    cardTurn: 0.3,
+    poses: {
+      "obj-pump": { target: [-0.66, -0.55, -4.56], position: [0.31, -0.37, -2.69] },
+      "obj-cabinet": { target: [-0.11, 0.6, -12.71], position: [0.55, 0.37, -5.72] },
+      "obj-valve": { target: [2.41, 0.79, -4.58], position: [0.83, 0.53, -2.52] },
+      "obj-motor": { target: [1.84, -0.76, -5.3], position: [0.51, -0.32, -2.91] },
+      "obj-pallet": { target: [1.91, -1.03, -3.18], position: [0.55, -0.47, -1.75] },
+      "obj-extinguisher": { target: [-2.94, 0.73, -5.45], position: [-1.12, 0.5, -3] },
+      "obj-hose": { target: [1.53, 0.41, -1.88], position: [0.28, 0.31, -0.96] },
+    } as Record<string, CameraPose>,
+  },
+  storeroom: {
+    still: { src: "/rooms/storeroom.jpg", alt: "Still frame of the parts storeroom: shelving on three sides and a rack in the middle" },
+    splat: { src: "/splats/storeroom.sog", sizeLabel: "24 MB" },
+    rotation: [0, 0, 0],
+    home: HOME,
+    cardTurn: 0.3,
+    poses: {},
+  },
+  production: {
+    still: { src: "/rooms/production.jpg", alt: "Still frame of the production hall: two rows of four CNC machines" },
+    splat: { src: "/splats/production.sog", sizeLabel: "24 MB" },
+    rotation: [0, 0, 0],
+    home: HOME,
+    cardTurn: 0.3,
+    poses: {},
+  },
+  corridor: {
+    still: { src: "/rooms/corridor.jpg", alt: "Still frame of the corridor with doors to the rooms on both sides" },
+    splat: { src: "/splats/corridor.sog", sizeLabel: "23 MB" },
+    rotation: [0, 0, 0],
+    home: HOME,
+    cardTurn: 0.3,
+    poses: {},
+  },
+}
+
+/** The room's capture. Only scanned rooms are routed to, so every caller has one. */
+export function worldOf(room: RoomId): RoomWorld {
+  return WORLDS[room] ?? WORLDS.workshop!
+}
 
 export const TIMING = {
   /** UI mock: how long one view takes to segment. */
@@ -127,6 +170,14 @@ export const OBJECT_PALETTE = [
 ] as const
 
 export const SUGGESTED_CONCEPTS = ["pump", "valve", "motor", "pallet", "cabinet", "hose"] as const
+
+/** Concept chips in a room's segment panel: what is actually in that room. */
+export const ROOM_CONCEPTS: Partial<Record<RoomId, readonly string[]>> = {
+  workshop: SUGGESTED_CONCEPTS,
+  storeroom: ["rack", "quarantine"],
+  production: ["cnc machine", "electrical cabinet", "crate", "workbench"],
+  corridor: ["extinguisher", "first aid"],
+}
 
 /** Inputs that ask for "everything" instead of a concept. SAM3 needs a concept. */
 export const UNSUPPORTED_CONCEPTS = [
@@ -188,7 +239,7 @@ export const LAYOUT = {
 } as const
 
 export const STORAGE_KEYS = {
-  objects: "world-parts.objects.v4",
+  objects: "world-parts.objects.v5",
   selection: "world-parts.selection.v1",
   planHintSeen: "world-parts.plan-hint-seen.v1",
   concepts: "world-parts.concepts.v1",
@@ -316,13 +367,280 @@ export const SEED_OBJECTS: WorldObject[] = [
     firstSegmentedAt: "2026-11-04T09:27:40.000Z",
     polygon: [[1600, 330], [1640, 285], [1705, 290], [1760, 252], [1880, 245], [1925, 300], [1915, 430], [1840, 475], [1700, 465], [1600, 452]],
   },
+  /* Storeroom: three racks hold the shelf stock that used to be "inventory only". */
+  {
+    id: "obj-rack-r1",
+    name: "rack R1",
+    concept: "rack",
+    assetId: "R1",
+    kind: "equipment",
+    room: "storeroom",
+    bins: ["S1", "S2", "S3", "S4"],
+    colorIndex: 6,
+    splats: 38_200,
+    views: 12,
+    votes: 10,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:40:00.000Z",
+    polygon: [[144, 247], [467, 320], [680, 460], [683, 747], [507, 853], [240, 1013], [147, 987]],
+  },
+  {
+    id: "obj-rack-r2",
+    name: "rack R2",
+    concept: "rack",
+    assetId: "R2",
+    kind: "equipment",
+    room: "storeroom",
+    bins: ["S1", "S2", "S3", "S4"],
+    colorIndex: 1,
+    splats: 24_650,
+    views: 10,
+    votes: 9,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:41:10.000Z",
+    polygon: [[791, 496], [1213, 496], [1227, 837], [787, 837]],
+  },
+  {
+    id: "obj-rack-r3",
+    name: "rack R3",
+    concept: "rack",
+    assetId: "R3",
+    kind: "equipment",
+    room: "storeroom",
+    bins: ["S1", "S2", "S3", "S4"],
+    colorIndex: 4,
+    splats: 41_900,
+    views: 11,
+    votes: 9,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:42:30.000Z",
+    polygon: [[1313, 433], [1613, 333], [1887, 260], [1887, 960], [1820, 1013], [1573, 880], [1313, 747]],
+  },
+  {
+    id: "obj-quarantine",
+    name: "quarantine bins",
+    concept: "quarantine",
+    assetId: "QB-01",
+    kind: "equipment",
+    room: "storeroom",
+    colorIndex: 0,
+    splats: 3_120,
+    views: 5,
+    votes: 3,
+    status: "low_confidence",
+    firstSegmentedAt: "2026-11-13T12:43:40.000Z",
+    polygon: [[1240, 613], [1313, 613], [1313, 727], [1233, 727]],
+  },
+  /* Production hall: two lines of four CNC machines, numbered from the door. Line 1 is on the left. */
+  {
+    id: "obj-cnc-01",
+    name: "CNC machine 01",
+    concept: "cnc machine",
+    assetId: "CNC-01",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 2,
+    splats: 29_400,
+    views: 9,
+    votes: 8,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:50:00.000Z",
+    polygon: [[80, 587], [333, 573], [520, 773], [513, 1067], [400, 1087], [107, 1073]],
+  },
+  {
+    id: "obj-cnc-02",
+    name: "CNC machine 02",
+    concept: "cnc machine",
+    assetId: "CNC-02",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 3,
+    splats: 21_300,
+    views: 9,
+    votes: 8,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:51:00.000Z",
+    polygon: [[347, 513], [627, 473], [660, 667], [653, 840], [513, 847], [440, 693]],
+  },
+  {
+    id: "obj-cnc-03",
+    name: "CNC machine 03",
+    concept: "cnc machine",
+    assetId: "CNC-03",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 4,
+    splats: 16_800,
+    views: 9,
+    votes: 8,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:52:00.000Z",
+    polygon: [[460, 487], [693, 440], [740, 587], [733, 720], [653, 720], [627, 560]],
+  },
+  {
+    id: "obj-cnc-04",
+    name: "CNC machine 04",
+    concept: "cnc machine",
+    assetId: "CNC-04",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 5,
+    splats: 12_100,
+    views: 5,
+    votes: 3,
+    status: "low_confidence",
+    firstSegmentedAt: "2026-11-13T12:53:00.000Z",
+    polygon: [[587, 453], [747, 420], [787, 533], [780, 640], [740, 640], [720, 493]],
+  },
+  {
+    id: "obj-cnc-05",
+    name: "CNC machine 05",
+    concept: "cnc machine",
+    assetId: "CNC-05",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 6,
+    splats: 30_100,
+    views: 9,
+    votes: 8,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:54:00.000Z",
+    polygon: [[1507, 747], [1693, 547], [1867, 533], [1973, 607], [1940, 1067], [1653, 1073], [1513, 933]],
+  },
+  {
+    id: "obj-cnc-06",
+    name: "CNC machine 06",
+    concept: "cnc machine",
+    assetId: "CNC-06",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 7,
+    splats: 21_700,
+    views: 9,
+    votes: 8,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:55:00.000Z",
+    polygon: [[1380, 560], [1680, 513], [1720, 600], [1573, 640], [1513, 840], [1380, 827]],
+  },
+  {
+    id: "obj-cnc-07",
+    name: "CNC machine 07",
+    concept: "cnc machine",
+    assetId: "CNC-07",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 0,
+    splats: 16_200,
+    views: 9,
+    votes: 8,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:56:00.000Z",
+    polygon: [[1293, 493], [1533, 467], [1573, 533], [1400, 600], [1380, 720], [1300, 713]],
+  },
+  {
+    id: "obj-cnc-08",
+    name: "CNC machine 08",
+    concept: "cnc machine",
+    assetId: "CNC-08",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 1,
+    splats: 11_900,
+    views: 5,
+    votes: 3,
+    status: "low_confidence",
+    firstSegmentedAt: "2026-11-13T12:57:00.000Z",
+    polygon: [[1233, 440], [1400, 420], [1440, 467], [1300, 547], [1300, 640], [1240, 633]],
+  },
+  {
+    id: "obj-el-cabinet",
+    name: "electrical cabinet",
+    concept: "electrical cabinet",
+    assetId: "EC-01",
+    kind: "equipment",
+    room: "production",
+    bins: ["A", "B"],
+    colorIndex: 5,
+    splats: 9_400,
+    views: 8,
+    votes: 7,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:59:00.000Z",
+    polygon: [[927, 420], [1077, 420], [1077, 573], [927, 573]],
+  },
+  {
+    id: "obj-crates",
+    name: "parts crates",
+    concept: "crate",
+    assetId: "CR-01",
+    kind: "equipment",
+    room: "production",
+    bins: ["crate 1", "crate 2"],
+    colorIndex: 7,
+    splats: 7_850,
+    views: 6,
+    votes: 5,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:59:30.000Z",
+    polygon: [[793, 460], [896, 460], [896, 573], [793, 573]],
+  },
+  {
+    id: "obj-workbench",
+    name: "workbench",
+    concept: "workbench",
+    assetId: "WB-01",
+    kind: "equipment",
+    room: "production",
+    colorIndex: 3,
+    splats: 5_300,
+    views: 5,
+    votes: 4,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T12:59:50.000Z",
+    polygon: [[1087, 517], [1213, 517], [1213, 573], [1087, 573]],
+  },
+  /* Corridor: safety equipment only. The doors are navigation (DOORS), not objects. */
+  {
+    id: "obj-extinguisher-c",
+    name: "fire extinguisher",
+    concept: "extinguisher",
+    assetId: "FE-07",
+    kind: "equipment",
+    room: "corridor",
+    colorIndex: 0,
+    splats: 1_240,
+    views: 6,
+    votes: 5,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T13:01:00.000Z",
+    polygon: [[740, 573], [763, 573], [763, 651], [740, 651]],
+  },
+  {
+    id: "obj-first-aid",
+    name: "first aid box",
+    concept: "first aid",
+    assetId: "FA-01",
+    kind: "equipment",
+    room: "corridor",
+    colorIndex: 6,
+    splats: 1_080,
+    views: 6,
+    votes: 5,
+    status: "lifted",
+    firstSegmentedAt: "2026-11-13T13:01:20.000Z",
+    polygon: [[731, 493], [767, 493], [767, 567], [731, 567]],
+  },
 ]
 
 /**
  * What the mocked SAM3 "finds" for a concept in the current view.
  * Any concept not listed here fails with a "no mask" reason.
  */
-export const MOCK_DETECTIONS: Record<string, { splats: number; views: number; votes: number; polygon: Point[] }> = {
+type MockDetection = { splats: number; views: number; votes: number; polygon: Point[] }
+
+/** Only the workshop has extra detections; in other rooms an unknown concept gets "no mask". */
+export const MOCK_DETECTIONS: Partial<Record<RoomId, Record<string, MockDetection>>> = {
+  workshop: {
   cabinet: {
     splats: 31_400,
     views: 10,
@@ -338,6 +656,7 @@ export const MOCK_DETECTIONS: Record<string, { splats: number; views: number; vo
   drum: { splats: 7_230, views: 5, votes: 3, polygon: [[1510, 672], [1651, 666], [1664, 896], [1517, 902]] },
   ladder: { splats: 5_120, views: 9, votes: 8, polygon: [[1331, 230], [1395, 224], [1453, 666], [1389, 672]] },
   workbench: { splats: 26_900, views: 12, votes: 11, polygon: [[717, 666], [1024, 646], [1043, 717], [736, 740]] },
+  },
 }
 
 export const MOCK_NO_MASK_REASON = (concept: string) => `No mask above threshold for "${concept}" in this view`
@@ -346,7 +665,7 @@ export const MOCK_NO_MASK_REASON = (concept: string) => `No mask above threshold
 /* Plant overview (Level 1): floor plan, rooms, parts, inventory.     */
 /* ------------------------------------------------------------------ */
 
-export type RoomId = "production" | "workshop" | "storeroom" | "office" | "loading"
+export type RoomId = "production" | "workshop" | "storeroom" | "office" | "loading" | "corridor"
 
 export interface Room {
   id: RoomId
@@ -375,10 +694,30 @@ export const PLAN = {
  * The world was generated from a photo and the plan drawn separately, so the room is longer and narrower
  * in the world than on the plan: x and z get their own scale for positions. The view cone keeps its true angle.
  */
-export const PLAN_CALIBRATION: Partial<Record<RoomId, { world: [Point, Point]; plan: [Point, Point] }>> = {
+/** Which way the still's camera looks on the plan (world −Z). Rooms are entered from the corridor. */
+export type Facing = "north" | "south" | "east" | "west"
+
+export const PLAN_CALIBRATION: Partial<Record<RoomId, { world: [Point, Point]; plan: [Point, Point]; facing?: Facing }>> = {
   workshop: {
     world: [[-2.8, -12.3], [2.8, 0]],
     plan: [[872, 145], [1198, 410]],
+  },
+  // Walls measured from the splats: x ≈ ±3.5, back wall z ≈ −12.3. Door in the south wall, looking north.
+  storeroom: {
+    world: [[-3.5, -12.3], [3.5, 0]],
+    plan: [[1237, 145], [1623, 415]],
+  },
+  // Walls at x ≈ ±7.5, far wall z ≈ −20.2. Door in the east wall, looking west: world +x is north.
+  production: {
+    world: [[-7.5, -20.2], [7.5, 0]],
+    plan: [[52, 748], [833, 147]],
+    facing: "west",
+  },
+  // Walls at x ≈ ±2, the outside door at z ≈ −21. Camera at the west end, looking east: world +x is south.
+  corridor: {
+    world: [[-2, -21], [2, 0]],
+    plan: [[1625, 440], [868, 530]],
+    facing: "east",
   },
 }
 
@@ -389,13 +728,27 @@ export const VIEWPOINTS: Partial<Record<RoomId, { id: string; label: string; pos
     { id: "aisle", label: "Centre aisle", pose: { position: [0, 0, -5], target: [0, -0.1, -6.5] } },
     { id: "cabinet", label: "By the cabinet", pose: { position: [-2, 0.2, -7.9], target: [-0.11, 0.5, -12.4] } },
   ],
+  storeroom: [
+    { id: "entrance", label: "Entrance", pose: { position: [0, 0, 0], target: [0, 0, -1] } },
+    { id: "aisle", label: "By rack R2", pose: { position: [0, 0, -5.5], target: [0, -0.2, -7.5] } },
+  ],
+  production: [
+    { id: "entrance", label: "Entrance", pose: { position: [0, 0, 0], target: [0, 0, -1] } },
+    { id: "aisle", label: "Centre aisle", pose: { position: [0, 0, -8], target: [0, -0.1, -10] } },
+    { id: "far", label: "By the cabinets", pose: { position: [0, 0, -15], target: [0, 0, -19] } },
+  ],
+  corridor: [
+    { id: "west", label: "West end", pose: { position: [0, 0, 0], target: [0, 0, -1] } },
+    { id: "middle", label: "Middle", pose: { position: [0, 0, -9], target: [0, 0, -11] } },
+    { id: "east", label: "By the outside door", pose: { position: [0, 0, -16], target: [0, 0, -20] } },
+  ],
 }
 
 export const ROOMS: Room[] = [
   {
     id: "production",
     name: "Production hall",
-    scanned: false,
+    scanned: true,
     polygon: [[40, 135], [845, 135], [845, 760], [40, 760]],
     anchor: [442, 447],
   },
@@ -409,7 +762,7 @@ export const ROOMS: Room[] = [
   {
     id: "storeroom",
     name: "Storeroom",
-    scanned: false,
+    scanned: true,
     polygon: [[1225, 135], [1635, 135], [1635, 425], [1225, 425]],
     anchor: [1430, 345],
   },
@@ -427,10 +780,37 @@ export const ROOMS: Room[] = [
     polygon: [[1190, 545], [1635, 545], [1635, 760], [1535, 760], [1535, 815], [1380, 815], [1380, 760], [1190, 760]],
     anchor: [1300, 600],
   },
+  {
+    id: "corridor",
+    name: "Corridor",
+    scanned: true,
+    polygon: [[860, 432], [1635, 432], [1635, 538], [860, 538]],
+    anchor: [1248, 485],
+  },
 ]
 
-/** The room that holds the 3D world from round 1. */
-export const WORLD_ROOM: RoomId = "workshop"
+/** Rooms with a 3D capture. Search treats their equipment as "in world". */
+export const isScanned = (room: RoomId) => ROOMS.some((r) => r.id === room && r.scanned)
+
+/**
+ * How the rooms connect. Every room opens onto the corridor; the corridor's doors are drawn on its still
+ * (polygon, still-frame space). A room's own door is behind its camera, so it has no polygon: the room
+ * chrome shows it as a button. Office and loading bay have no capture yet, so their doors say so.
+ */
+export type Door = { to: RoomId; label: string; polygon?: Point[] }
+
+export const DOORS: Partial<Record<RoomId, Door[]>> = {
+  corridor: [
+    { to: "workshop", label: "Workshop", polygon: [[396, 264], [540, 327], [549, 880], [420, 947]] },
+    { to: "storeroom", label: "Storeroom", polygon: [[800, 440], [851, 440], [851, 607], [800, 627]] },
+    { to: "office", label: "Office", polygon: [[1467, 253], [1653, 253], [1640, 947], [1467, 853]] },
+    { to: "loading", label: "Loading bay", polygon: [[1157, 427], [1176, 427], [1173, 647], [1157, 640]] },
+    { to: "production", label: "Production hall" },
+  ],
+  workshop: [{ to: "corridor", label: "Corridor" }],
+  storeroom: [{ to: "corridor", label: "Corridor" }],
+  production: [{ to: "corridor", label: "Corridor" }],
+}
 
 /* ------------------------------------------------------------------ */
 /* Equipment (level 1) and parts (level 2).                            */
@@ -533,7 +913,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     installedIn: ["P-104", "M-21"],
     storedIn: [
       { assetId: "CAB-01", bin: "B3", qty: 2 },
-      { room: "storeroom", rack: "R2", shelf: 3, qty: 6 },
+      { assetId: "R2", bin: "S3", qty: 6 },
     ],
   },
   {
@@ -547,7 +927,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     similar: [{ partNo: "BRG-6205-2RS", match: "related", reason: "same bore, but 52 mm outside: won't fit the same housing" }],
     aliases: [],
     installedIn: ["M-21"],
-    storedIn: [{ room: "storeroom", rack: "R2", shelf: 3, qty: 1 }],
+    storedIn: [{ assetId: "R2", bin: "S3", qty: 1 }],
   },
   {
     partNo: "SEL-25",
@@ -620,7 +1000,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     installedIn: ["M-21"],
     storedIn: [
       { assetId: "CAB-01", bin: "C1", qty: 4 },
-      { room: "storeroom", rack: "R1", shelf: 2, qty: 8 },
+      { assetId: "R1", bin: "S2", qty: 8 },
     ],
   },
   {
@@ -633,10 +1013,10 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     idleSince: null,
     similar: [],
     aliases: [],
-    installedIn: [],
+    installedIn: ["CNC-05", "CNC-06", "CNC-07", "CNC-08"],
     storedIn: [
-      { room: "storeroom", rack: "R3", shelf: 1, qty: 3 },
-      { room: "production", location: "line 2, machine 4", qty: 1 },
+      { assetId: "R3", bin: "S1", qty: 3 },
+      { assetId: "CR-01", bin: "crate 2", qty: 1 },
     ],
   },
   {
@@ -649,10 +1029,10 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     idleSince: null,
     similar: [],
     aliases: [],
-    installedIn: [],
+    installedIn: ["EC-01"],
     storedIn: [
       { assetId: "CAB-01", bin: "A2", qty: 3 },
-      { room: "production", location: "line 1, control panel", qty: 1 },
+      { assetId: "EC-01", bin: "A", qty: 1 },
     ],
   },
   {
@@ -692,7 +1072,7 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     similar: [],
     aliases: [],
     installedIn: ["V-08"],
-    storedIn: [{ room: "storeroom", rack: "R2", shelf: 1, qty: 2 }],
+    storedIn: [{ assetId: "R2", bin: "S1", qty: 2 }],
   },
   {
     partNo: "GSK-SET",
@@ -707,8 +1087,34 @@ const PART_RECORDS: Omit<Part, "stock">[] = [
     installedIn: ["P-104", "V-08"],
     storedIn: [
       { assetId: "CAB-01", bin: "B1", qty: 2 },
-      { room: "storeroom", rack: "R1", shelf: 4, qty: 3 },
+      { assetId: "R1", bin: "S4", qty: 3 },
     ],
+  },
+  {
+    partNo: "XPZ-1000",
+    name: "Spindle belt XPZ 1000",
+    description: "Narrow V-belt, section XPZ, 1000 mm pitch length, cogged",
+    unitPrice: 14.2,
+    supplier: "Supplier C",
+    lastCounted: "2026-11-06",
+    idleSince: null,
+    similar: [],
+    aliases: [{ source: "ERP", value: "KEILRIEMEN XPZ1000" }],
+    installedIn: ["CNC-01", "CNC-02", "CNC-03", "CNC-04", "CNC-05", "CNC-06", "CNC-07", "CNC-08"],
+    storedIn: [{ assetId: "R3", bin: "S2", qty: 4 }],
+  },
+  {
+    partNo: "CLP-025",
+    name: "Coolant pump 0.25 kW",
+    description: "Immersion coolant pump, 0.25 kW, 230/400 V, 120 mm immersion depth",
+    unitPrice: 189,
+    supplier: "Supplier D",
+    lastCounted: "2026-11-06",
+    idleSince: null,
+    similar: [],
+    aliases: [],
+    installedIn: ["CNC-01", "CNC-02", "CNC-03", "CNC-04"],
+    storedIn: [{ assetId: "R1", bin: "S3", qty: 1 }],
   },
   {
     partNo: "GRS-400",

@@ -3,7 +3,7 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { TriangleAlertIcon } from "lucide-react"
-import { LIVE_WORLD, OBJECT_PALETTE, type CameraPose, type WorldObject } from "@/lib/data"
+import { OBJECT_PALETTE, worldOf, type CameraPose, type WorldObject } from "@/lib/data"
 import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
 import type { CameraView } from "@/lib/minimap"
 import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
@@ -21,16 +21,24 @@ const SplatCanvas = dynamic(() => import("@/components/world/splat-canvas").then
  * the object lands left of centre, in the free part of the view. Turning (not sliding)
  * keeps the camera inside the room even for far objects.
  */
-function besideCard(pose: CameraPose): CameraPose {
+function besideCard(pose: CameraPose, a: number): CameraPose {
   const [px, py, pz] = pose.position
   const [tx, ty, tz] = pose.target
   const fx = tx - px
   const fz = tz - pz
   // Right of forward on the floor plane: (−fz, fx).
-  const a = LIVE_WORLD.cardTurn
   const nx = fx * Math.cos(a) - fz * Math.sin(a)
   const nz = fz * Math.cos(a) + fx * Math.sin(a)
   return { position: pose.position, target: [px + nx, py + (ty - py), pz + nz] }
+}
+
+/**
+ * Rooms without hand-measured poses: stand between the door and the object, 55% of the way, and look at the
+ * centre of its lifted splats. The still's camera is at the origin, so the line from it to the object is clear.
+ */
+function poseFromAnchor(anchor: [number, number, number]): CameraPose {
+  const [x, y, z] = anchor
+  return { target: anchor, position: [x * 0.55, y * 0.3, z * 0.55] }
 }
 
 function focusFor(o: WorldObject, stats: SplatStats | undefined): Focus | null {
@@ -65,6 +73,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   const markersRef = React.useRef<MarkersHandle>(null)
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
   const { state } = useWorld()
+  const world = worldOf(state.roomId)
   const readyRef = React.useRef(onReadyChange)
   readyRef.current = onReadyChange
   React.useEffect(() => {
@@ -78,10 +87,10 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       state.objects
         .filter((o) => DRAWABLE.includes(o.status) && o.polygon)
         .map((o) => {
-          const target = LIVE_WORLD.poses[o.id]?.target
+          const target = world.poses[o.id]?.target
           return { id: o.id, polygon: o.polygon!, depth: target ? -target[2] : undefined }
         }),
-    [state.objects],
+    [state.objects, world],
   )
   const maskKey = maskObjects.map((o) => o.id).join(",")
   const [stats, setStats] = React.useState<Map<string, SplatStats>>(new Map())
@@ -98,10 +107,11 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   // Find → fly: the framed object's hand-measured pose, or home when nothing is framed.
   React.useEffect(() => {
     if (status.kind !== "ready") return
-    const pose = state.framedId ? LIVE_WORLD.poses[state.framedId] : undefined
-    if (pose) ref.current?.flyTo(state.cardId ? besideCard(pose) : pose)
+    const anchor = state.framedId ? stats.get(state.framedId)?.anchor : undefined
+    const pose = state.framedId ? (world.poses[state.framedId] ?? (anchor ? poseFromAnchor(anchor) : undefined)) : undefined
+    if (pose) ref.current?.flyTo(state.cardId ? besideCard(pose, world.cardTurn) : pose)
     else if (!state.framedId) ref.current?.reset()
-  }, [state.framedId, state.cardId, status.kind])
+  }, [state.framedId, state.cardId, status.kind, stats, world])
 
   // Highlight: what the pointer is on, else the found object, else a single selection.
   const focusId =
@@ -122,9 +132,9 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     <div className="absolute inset-0 overflow-hidden bg-scene">
       <SplatCanvas
         ref={ref}
-        src={LIVE_WORLD.src}
-        home={LIVE_WORLD.home}
-        rotation={LIVE_WORLD.rotation}
+        src={world.splat.src}
+        home={world.home}
+        rotation={world.rotation}
         pixelRatio={pixelRatio}
         onStatus={setStatus}
         onFirstInteraction={onFirstDrag}
@@ -139,7 +149,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       {status.kind === "loading" && (
         <div role="status" className="absolute inset-0 grid place-items-center">
           <div className="flex w-56 flex-col gap-2 rounded-md bg-black/75 px-3 py-2.5 text-label text-scene-ink backdrop-blur-sm">
-            <span>{`Loading 3D world · ${LIVE_WORLD.sizeLabel}`}</span>
+            <span>{`Loading 3D world · ${world.splat.sizeLabel}`}</span>
             <span className="h-1 overflow-hidden rounded-full bg-white/15">
               <span
                 className="block h-full rounded-full bg-status-active transition-[width] duration-200"

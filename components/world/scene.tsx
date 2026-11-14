@@ -2,13 +2,14 @@
 
 import * as React from "react"
 import { ImageOffIcon, ScanSearchIcon } from "lucide-react"
-import { COPY, LAYOUT, OBJECT_PALETTE, SCENE, type WorldObject } from "@/lib/data"
+import { COPY, DOORS, LAYOUT, OBJECT_PALETTE, SCENE, isScanned, worldOf, type WorldObject } from "@/lib/data"
 import { bounds, centroid, containMapping, formatCount, toPointsAttr } from "@/lib/geometry"
 import { cn } from "@/lib/utils"
 import { useElementSize } from "@/hooks/use-element-size"
 import { useCardRect, type Rect } from "@/hooks/use-card-inset"
 import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { DRAWABLE, useWorld, type SelectMode } from "@/components/world/world-provider"
+import { navigate } from "@/hooks/use-hash-route"
 
 type ImageState = "loading" | "ready" | "missing"
 
@@ -38,10 +39,15 @@ export function Scene() {
   const [imageState, setImageState] = React.useState<ImageState>("loading")
   const card = useCardRect(containerRef, state.cardId !== null)
 
+  const still = worldOf(state.roomId).still
+  const doors = (DOORS[state.roomId] ?? []).filter((d) => d.polygon)
+
+  // A new room means a new image: start from "loading" again, then read the cached state.
   React.useEffect(() => {
+    setImageState("loading")
     const img = imgRef.current
     if (img?.complete) setImageState(img.naturalWidth > 0 ? "ready" : "missing")
-  }, [])
+  }, [still.src])
 
   const map = containMapping(width || 1, height || 1, SCENE.width, SCENE.height)
   const drawable = state.objects.filter((o) => DRAWABLE.includes(o.status) && o.polygon)
@@ -137,8 +143,8 @@ export function Scene() {
         <img
           ref={imgRef}
           data-scene-backdrop
-          src={SCENE.imageSrc}
-          alt={SCENE.alt}
+          src={still.src}
+          alt={still.alt}
           onLoad={() => setImageState("ready")}
           onError={() => setImageState("missing")}
           className={cn(
@@ -156,6 +162,32 @@ export function Scene() {
           role="group"
           aria-label="Segmented objects"
         >
+          {doors.map((d) => {
+            const open = isScanned(d.to)
+            return (
+              <g
+                key={d.to}
+                className={cn("door-hotspot", open ? "cursor-pointer" : "cursor-not-allowed")}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (open) navigate({ level: "room", room: d.to, object: null, q: "" })
+                }}
+              >
+                <title>{open ? `Go to ${d.label}` : `${d.label} · not scanned yet`}</title>
+                <polygon
+                  points={toPointsAttr(d.polygon!)}
+                  fill="white"
+                  fillOpacity={0.06}
+                  stroke="white"
+                  strokeOpacity={open ? 0.7 : 0.35}
+                  strokeWidth={1.5}
+                  strokeDasharray="6 5"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </g>
+            )
+          })}
           {drawable.map((o) => {
             const color = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
             const isSel = selected.has(o.id)
@@ -245,6 +277,28 @@ export function Scene() {
                 <span className={cn("tabular-nums text-scene-ink/60", compact && "max-panel:hidden")}>
                   {formatCount(o.splats ?? 0)}
                 </span>
+              </button>
+            )
+          })}
+      </div>
+
+      <div className="pointer-events-none absolute inset-0">
+        {width > 0 &&
+          doors.map((d) => {
+            const [cx] = centroid(d.polygon!)
+            const x = (cx * map.k + map.offsetX) * transform.s + transform.tx
+            const y = (bounds(d.polygon!).y * map.k + map.offsetY) * transform.s + transform.ty
+            const open = isScanned(d.to)
+            return (
+              <button
+                key={d.to}
+                type="button"
+                disabled={!open}
+                onClick={() => navigate({ level: "room", room: d.to, object: null, q: "" })}
+                className="pointer-events-auto absolute flex -translate-x-1/2 -translate-y-full items-center gap-1 whitespace-nowrap rounded-full bg-white/90 px-2 py-0.5 text-label font-medium text-black shadow-sm disabled:bg-black/60 disabled:text-scene-ink/70"
+                style={{ left: x, top: y - 6 }}
+              >
+                {open ? `→ ${d.label}` : `${d.label} · not scanned`}
               </button>
             )
           })}
