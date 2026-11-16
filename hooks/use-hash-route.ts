@@ -3,9 +3,10 @@
 import * as React from "react"
 import { ROOMS, type RoomId } from "@/lib/data"
 
-/** Level 0 parts list (default) · Level 1 plan · Level 2 room. */
+/** Level 0 parts list (default) or list + 3D side by side · Level 1 plan · Level 2 room. */
 export type Route =
   | { level: "parts"; q: string; part?: string | null }
+  | { level: "split"; q: string; part?: string | null }
   | { level: "plant"; q: string; pin?: RoomId | null }
   | { level: "room"; room: RoomId; object: string | null; part?: string | null; q: string }
 
@@ -17,6 +18,7 @@ export function parseRoute(search: string): Route {
   const part = params.get("part")
   const room = ROOMS.find((r) => r.id === params.get("room") && r.scanned)
   if (room) return { level: "room", room: room.id, object: params.get("object"), part, q }
+  if (params.get("view") === "split") return { level: "split", q, part }
   if (params.get("view") === "plant") {
     const pin = ROOMS.find((r) => r.id === params.get("pin"))?.id ?? null
     return { level: "plant", q, pin }
@@ -33,8 +35,9 @@ export function formatRoute(route: Route): string {
   } else if (route.level === "plant") {
     params.set("view", "plant")
     if (route.pin) params.set("pin", route.pin)
-  } else if (route.part) {
-    params.set("part", route.part)
+  } else {
+    if (route.level === "split") params.set("view", "split")
+    if (route.part) params.set("part", route.part)
   }
   if (route.q.trim()) params.set("q", route.q.trim())
   const body = params.toString()

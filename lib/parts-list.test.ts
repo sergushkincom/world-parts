@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { PARTS, type Part } from "./data.ts"
-import { PART_FILTERS, matchesQuery, sortParts } from "./parts-list.ts"
+import { PART_FILTERS, matchesQuery, partAtAsset, partPlace, sortParts } from "./parts-list.ts"
 
 function part(partNo: string): Part {
   const found = PARTS.find((item) => item.partNo === partNo)
@@ -174,5 +174,33 @@ describe("sortParts", () => {
 
   it("returns an empty list unchanged in shape", () => {
     assert.deepEqual(sortParts([], { key: "name", dir: "asc" }), [])
+  })
+})
+
+describe("part place for the split view", () => {
+  it("prefers a spare in a scanned room over stock elsewhere", () => {
+    assert.deepEqual(partPlace(part("GRS-400")), { room: "workshop", assetId: "CAB-01", label: "cabinet C1" })
+  })
+
+  it("points a shelf part at its rack", () => {
+    assert.deepEqual(partPlace(part("BRG-6305")), { room: "storeroom", assetId: "R2", label: "rack R2, shelf 3" })
+  })
+
+  it("falls back to the equipment an installed-only part is fitted in", () => {
+    const place = partPlace(part("IMP-160"))
+    assert.equal(place?.room, "workshop")
+    assert.equal(place?.assetId, "P-104")
+  })
+
+  it("gives every part in the inventory a place", () => {
+    for (const p of PARTS) assert.ok(partPlace(p), p.partNo)
+  })
+})
+
+describe("parts at a piece of equipment", () => {
+  it("counts parts in its bins and parts fitted in it", () => {
+    assert.equal(partAtAsset(part("FUS-32A"), "CAB-01"), true)
+    assert.equal(partAtAsset(part("BRG-6305"), "M-21"), true)
+    assert.equal(partAtAsset(part("BRG-6305"), "CAB-01"), false)
   })
 })

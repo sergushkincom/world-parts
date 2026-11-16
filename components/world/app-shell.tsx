@@ -16,8 +16,8 @@ export function AppShell() {
   return (
     <div className="relative isolate flex h-dvh flex-col overflow-hidden">
       <div ref={viewRef} className="relative z-10 min-h-0 flex-1 will-change-transform">
-        {route.level === "parts" ? (
-          <PartsView q={route.q} part={route.part ?? null} />
+        {route.level === "parts" || route.level === "split" ? (
+          <PartsView q={route.q} part={route.part ?? null} split={route.level === "split"} />
         ) : route.level === "plant" ? (
           // Keyed by pin so following another location link re-opens that room's note.
           <PlantView key={route.pin ?? ""} q={route.q} pin={route.pin ?? null} />

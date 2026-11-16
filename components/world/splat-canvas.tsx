@@ -84,6 +84,11 @@ type Props = {
   rotation: [number, number, number]
   /** Back-buffer scale. Changing it resizes the canvas and does not reload the splat. */
   pixelRatio?: number
+  /**
+   * How fast `flyTo` and `reset` settle: the share of the way left after each millisecond (ease-out).
+   * 0 jumps at once. Leave unset for the controls' own default.
+   */
+  focusDamping?: number
   onStatus: (s: SplatStatus) => void
   onFirstInteraction?: () => void
   /**
@@ -97,7 +102,7 @@ const v = (p: [number, number, number]) => new Vec3(p[0], p[1], p[2])
 const EDITABLE = "input, textarea, select, [contenteditable='true']"
 
 export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function SplatCanvas(
-  { src, home, rotation, pixelRatio = 1, onStatus, onFirstInteraction, onFrame },
+  { src, home, rotation, pixelRatio = 1, focusDamping, onStatus, onFirstInteraction, onFrame },
   ref,
 ) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -120,6 +125,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   frameRef.current = onFrame
   const ratioRef = React.useRef(pixelRatio)
   ratioRef.current = pixelRatio
+  const dampingRef = React.useRef(focusDamping)
+  dampingRef.current = focusDamping
 
   React.useImperativeHandle(ref, () => ({
     focus: (focus) => {
@@ -204,6 +211,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     controls.moveFastSpeed = 2
     controls.moveSlowSpeed = 0.5
     controls.zoomRange = new Vec2(0.2, 6)
+    if (dampingRef.current !== undefined) controls.focusDamping = dampingRef.current
     controls.reset(v(homeRef.current.target), v(homeRef.current.position))
     controlsRef.current = controls
 
@@ -323,6 +331,10 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       canvas.removeEventListener("pointercancel", up)
     }
   }, [])
+
+  React.useEffect(() => {
+    if (focusDamping !== undefined && controlsRef.current) controlsRef.current.focusDamping = focusDamping
+  }, [focusDamping])
 
   React.useEffect(() => {
     const app = appRef.current

@@ -59,10 +59,14 @@ type SplatViewProps = {
   onFirstDrag?: () => void
   /** Back-buffer scale. Does not reload the splat. */
   pixelRatio?: number
+  /** Camera ease-out for flights; see SplatCanvas. */
+  focusDamping?: number
+  /** Replaces the marker's own click (select, frame, open the card). */
+  onPick?: (id: string) => void
 }
 
 export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
-  { onFallback, onCamera, onReadyChange, onFirstDrag, pixelRatio },
+  { onFallback, onCamera, onReadyChange, onFirstDrag, pixelRatio, focusDamping, onPick },
   handle,
 ) {
   const ref = React.useRef<SplatCanvasHandle>(null)
@@ -136,6 +140,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         home={world.home}
         rotation={world.rotation}
         pixelRatio={pixelRatio}
+        focusDamping={focusDamping}
         onStatus={setStatus}
         onFirstInteraction={onFirstDrag}
         onFrame={(project, view) => {
@@ -144,7 +149,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         }}
       />
 
-      {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} />}
+      {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} onPick={onPick} />}
 
       {status.kind === "loading" && (
         <div role="status" className="absolute inset-0 grid place-items-center">

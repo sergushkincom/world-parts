@@ -24,10 +24,13 @@ function anchorOf(
  * but anchored in 3D, so it stays on the object from any angle. The canvas moves them every frame through
  * `place`; React only re-renders on hover, selection or framing.
  */
-export const SplatMarkers = React.forwardRef<MarkersHandle, { stats: Map<string, SplatStats> }>(function SplatMarkers(
-  { stats },
-  ref,
-) {
+type MarkersProps = {
+  stats: Map<string, SplatStats>
+  /** Replaces the default click: select, frame and open the card. */
+  onPick?: (id: string) => void
+}
+
+export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(function SplatMarkers({ stats, onPick }, ref) {
   const { state, select, hover, frame, openCard } = useWorld()
   const poses = worldOf(state.roomId).poses
   const nodes = React.useRef(new Map<string, HTMLButtonElement>())
@@ -74,6 +77,7 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, { stats: Map<string,
             onFocus={() => hover(o.id)}
             onBlur={() => hover(null)}
             onClick={() => {
+              if (onPick) return onPick(o.id)
               select(o.id, "only")
               frame(o.id)
               openCard(o.id, "part")
