@@ -1,5 +1,17 @@
-import { ROOMS, SEARCH_MIN_CHARS, type Part } from "@/lib/data"
-import { getEquipment, idleMonths, isIdle, isLowStock, locationLabel, partInRoom, partStatuses } from "@/lib/parts"
+import { ROOMS, SEARCH_MIN_CHARS, type Part, type RoomId } from "@/lib/data"
+import {
+  getEquipment,
+  idleMonths,
+  isBin,
+  isIdle,
+  isLowStock,
+  locationLabel,
+  locationRoom,
+  partInRoom,
+  partStatuses,
+  placeLabel,
+  spareInWorld,
+} from "@/lib/parts"
 
 export type PartFilter = "all" | "low" | "idle" | "room"
 export type SortKey = "partNo" | "name" | "stock" | "location" | "status"
@@ -54,4 +66,25 @@ export function sortParts(parts: Part[], { key, dir }: Sort) {
     const cmp = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb))
     return cmp * sign || a.partNo.localeCompare(b.partNo)
   })
+}
+
+/** Where the split view points the camera for a part: a room, the equipment that holds it, and a short label. */
+export type PartPlace = { room: RoomId; assetId: string | null; label: string }
+
+/**
+ * A spare in a scanned room first (that one can be framed in 3D), then the first stock location,
+ * then the equipment the part is fitted in. Null only for a part with no location at all.
+ */
+export function partPlace(part: Part): PartPlace | null {
+  const stored = spareInWorld(part) ?? part.storedIn[0]
+  if (stored) {
+    return { room: locationRoom(stored), assetId: isBin(stored) ? stored.assetId : null, label: placeLabel(stored) }
+  }
+  const eq = part.installedIn.map((id) => getEquipment(id)).find((e) => e !== undefined)
+  return eq ? { room: eq.room, assetId: eq.assetId, label: `in ${eq.name.toLowerCase()} ${eq.assetId}` } : null
+}
+
+/** The part is kept in this equipment's bins or fitted in it. */
+export function partAtAsset(part: Part, assetId: string) {
+  return part.installedIn.includes(assetId) || part.storedIn.some((l) => isBin(l) && l.assetId === assetId)
 }

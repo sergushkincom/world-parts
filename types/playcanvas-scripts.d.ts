@@ -11,6 +11,8 @@ declare module "playcanvas/scripts/esm/camera-controls.mjs" {
     rotateSpeed: number
     zoomSpeed: number
     zoomRange: Vec2
+    /** Share of the way left after each ms of a focus/reset flight; 0 jumps. Library default 0.98. */
+    focusDamping: number
     focus(point: Vec3, resetZoom?: boolean): void
     reset(focus: Vec3, position: Vec3): void
   }

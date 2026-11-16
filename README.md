@@ -41,9 +41,23 @@ So the prototype starts from the plant, not from the viewer: search for a part, 
 - **Objects in the 3D world** — the still's labels (dot, name, splat count) pinned to each object's splats, so they stay on the object from any angle. Hover one and the object's splats light up in its colour, in the shape of its still-frame mask, while the rest of the world dims; click it and the camera flies there and the card opens. The found object's label pulses. How: the still's masks are lifted onto the world. Every splat is projected into the still with the still's own camera (calibrated by overlaying the still on the render); a splat is part of an object when it lands in the object's mask at the object's depth, so the wall behind the cabinet stays dark. Limit: sides the still never saw aren't in any mask.
 - **Substitute instead of a dead end** — when a part in a unit has no spare (the impeller in pump P-104), the card says so and offers a stocked part that does the same job, with the reason, and **Find substitute** takes you to its bin. Matches are labelled `exact duplicate · functional substitute · related`, and `related` is never offered as a swap. The substitute here has sat idle for 13 months, so using it is also the reuse case.
 - **Object card** — *Object* (splats, views, confidence) and *Parts in this unit* on equipment, with a "Find spare" action that frames the cabinet; *Bins* on the cabinet, a 2×3 grid with the searched bin highlighted.
-- Desktop and 375 px, keyboard for everything that isn't the camera (`/` search, `G` segment, `Esc` back, `↑/↓`, `1/2/3`), reduced motion respected, state in the URL so a link opens the same view.
+- Desktop and 375 px, keyboard for everything that isn't the camera (`/` search, `L · S · P` views, `G` segment, `Esc` back, `↑/↓`, `1/2/3`), reduced motion respected, state in the URL so a link opens the same view.
 
 Vocabulary is kept from the original project — concept, segment view, lift, views, votes, Gaussian view, isolate — so this can be read next to its code.
+
+## Split view: list and 3D side by side
+
+`List · Split · Plan` (or `S`) puts a compact parts table next to the selected part's room in Live 3D. Selection lives in one place, the URL (`?view=split&part=SEL-25`), so a link opens the same part in the same room.
+
+![Split view: the parts table on the left, the workshop in 3D on the right with pump P-104 framed and tinted](docs/split-view.png)
+
+- **Table → 3D.** Click a row or press `Enter`. The camera flies to the equipment that holds the part (~600 ms, ease-out) and tints it; a part in another scanned room loads that room first. `↑/↓` move through rows and fly along. `Esc` clears the selection. With reduced motion the camera jumps.
+- **3D → table.** Click a label in 3D and the row of a part kept or fitted there is selected and scrolled into view. The camera stays on what you clicked, even when that part's spare is elsewhere. Equipment with no parts on record says so.
+- **Hover.** Pointing at a row tints its equipment in 3D; the camera doesn't move.
+- **No scan yet.** A part in a room without a capture still selects; the right side shows the floor plan with that room marked and "No 3D scan for this room yet".
+- **Layout.** Drag the divider (or focus it and use `←/→`, `Home` resets). Under 900 px the two stack, 3D on top.
+
+<img src="docs/split-view-mobile.png" alt="Split view at phone width: 3D on top, part cards below" width="300">
 
 ## Design decisions
 
