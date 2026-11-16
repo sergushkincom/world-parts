@@ -1,10 +1,23 @@
 # world-parts
 
-**What does a 3D world become when you attach your own data to its objects?**
+**Find a spare part in a 3D scan of the plant, not in a spreadsheet.**
+
+A design prototype: parts data attached to objects in a segmented 3D world. Built in a day; the segmentation is mocked.
+
+![World Parts: search for a spare part and land on it in the scanned room](docs/readme-hero.png)
+
+## Try it in 30 seconds
+
+1. Open **[world-parts.vercel.app](https://world-parts.vercel.app)**.
+2. Press `/` and search for `spindle`.
+3. Pick a result marked `in world`: you walk into the scanned room with the machine in frame and its parts card open.
+4. Rooms marked `not scanned` answer from the inventory list only, and say so.
+
+## Background
 
 A design pass built on top of [risenW/segment-3gs](https://github.com/risenW/segment-3gs) — a Gaussian-splat segmentation playground on [SpAItial](https://spaitial.ai) worlds, where you segment an object once and it lives in 3D from then on. The pipeline there is real. This repo is the surface around it: the segmentation is mocked, the question is what a maintenance engineer does with a segmented world once their parts data hangs on it.
 
-**Live: [world-parts.vercel.app](https://world-parts.vercel.app)** · Built in a day, prototype only. Not affiliated with SpAItial.
+Prototype only. Not affiliated with SpAItial.
 
 ![Plant overview with a part search, and the workshop with the found pump framed](docs/preview.png)
 
