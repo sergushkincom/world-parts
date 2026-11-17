@@ -119,6 +119,17 @@ pnpm dev
 
 Open `/?room=workshop` and switch to **Live 3D**. If the file can't load, Live 3D says so and offers the still frame.
 
+### Streamed level of detail (spike, `?splat=lod`)
+
+Each room also has a level-of-detail version: four levels (100 / 50 / 20 / 5 %) built with `splat-transform` as SOG v2, plus a `lod-meta.json` and per-object `stats.json`. The coarsest level (1.3 MB) shows first, and the rest streams in as the camera needs it.
+
+The folders are about 42 MB per room, so they are not in Git. They live in a public Vercel Blob store, and `NEXT_PUBLIC_SPLAT_LOD_BASE` points at it. Without that variable, the app reads them from `public/splats/<room>-lod/` on your machine.
+
+```bash
+vercel env pull .env.local                                # BLOB_READ_WRITE_TOKEN
+node --env-file=.env.local scripts/upload-lod.mjs          # all rooms, or name one
+```
+
 ## How it was built
 
 v0 for the first version, then one review round per commit. `AGENT_LOG.md` lists every round: what the agent produced, what it got wrong, what I changed by hand.

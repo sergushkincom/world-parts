@@ -80,6 +80,17 @@ export interface RoomWorld {
   poses: Record<string, CameraPose>
 }
 
+/**
+ * Streamed level-of-detail splats (splat-transform, SOG v2). In production they live in Vercel Blob
+ * (NEXT_PUBLIC_SPLAT_LOD_BASE, the store's public URL); locally they are read from public/splats/.
+ */
+const LOD_BASE = process.env.NEXT_PUBLIC_SPLAT_LOD_BASE ?? ""
+const lod = (room: string) => ({
+  src: `${LOD_BASE}/splats/${room}-lod/lod-meta.json`,
+  sizeLabel: "1.3 MB first view",
+  stats: `${LOD_BASE}/splats/${room}-lod/stats.json`,
+})
+
 const HOME: CameraPose = { position: [0, 0, 0], target: [0, 0, -1] }
 
 export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
@@ -88,11 +99,7 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
     splat: {
       src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
       sizeLabel: "24 MB",
-      lod: {
-        src: "/splats/workshop-lod/lod-meta.json",
-        sizeLabel: "1.3 MB first view",
-        stats: "/splats/workshop-lod/stats.json",
-      },
+      lod: lod("workshop"),
     },
     rotation: [0, 0, 0],
     home: HOME,
@@ -112,7 +119,7 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
     splat: {
       src: "/splats/storeroom.sog",
       sizeLabel: "24 MB",
-      lod: { src: "/splats/storeroom-lod/lod-meta.json", sizeLabel: "1.3 MB first view", stats: "/splats/storeroom-lod/stats.json" },
+      lod: lod("storeroom"),
     },
     rotation: [0, 0, 0],
     home: HOME,
@@ -124,7 +131,7 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
     splat: {
       src: "/splats/production.sog",
       sizeLabel: "24 MB",
-      lod: { src: "/splats/production-lod/lod-meta.json", sizeLabel: "1.3 MB first view", stats: "/splats/production-lod/stats.json" },
+      lod: lod("production"),
     },
     rotation: [0, 0, 0],
     home: HOME,
@@ -136,7 +143,7 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
     splat: {
       src: "/splats/corridor.sog",
       sizeLabel: "23 MB",
-      lod: { src: "/splats/corridor-lod/lod-meta.json", sizeLabel: "1.3 MB first view", stats: "/splats/corridor-lod/stats.json" },
+      lod: lod("corridor"),
     },
     rotation: [0, 0, 0],
     home: HOME,
