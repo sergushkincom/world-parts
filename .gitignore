@@ -157,3 +157,5 @@ public/splats/*
 !public/splats/storeroom.sog
 !public/splats/production.sog
 !public/splats/corridor.sog
+# Spike: streamed level-of-detail version of the workshop (splat-transform, SOG v2 for PlayCanvas 2.23).
+!public/splats/workshop-lod/

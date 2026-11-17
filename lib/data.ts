@@ -58,7 +58,16 @@ export type CameraPose = { position: [number, number, number]; target: [number, 
  */
 export interface RoomWorld {
   still: { src: string; alt: string }
-  splat: { src: string; sizeLabel: string }
+  splat: {
+    src: string
+    sizeLabel: string
+    /**
+     * Streamed level-of-detail version (spike, opt-in with `?splat=lod`): a `lod-meta.json` from
+     * `splat-transform`, the coarsest level first. `stats` are the object masks lifted once from the full .sog,
+     * because a streamed scene has no splat centres to measure in the browser.
+     */
+    lod?: { src: string; sizeLabel: string; stats: string }
+  }
   /** SpAItial exports are already y-up; kept as a knob for other sources. */
   rotation: [number, number, number]
   home: CameraPose
@@ -76,7 +85,15 @@ const HOME: CameraPose = { position: [0, 0, 0], target: [0, 0, -1] }
 export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   workshop: {
     still: { src: "/scene.jpg", alt: "Still frame of a factory workshop interior" },
-    splat: { src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog", sizeLabel: "24 MB" },
+    splat: {
+      src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
+      sizeLabel: "24 MB",
+      lod: {
+        src: "/splats/workshop-lod/lod-meta.json",
+        sizeLabel: "1.3 MB first view",
+        stats: "/splats/workshop-lod/stats.json",
+      },
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,

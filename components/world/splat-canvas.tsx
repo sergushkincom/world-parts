@@ -89,6 +89,11 @@ type Props = {
    * 0 jumps at once. Leave unset for the controls' own default.
    */
   focusDamping?: number
+  /**
+   * `src` is a streamed `lod-meta.json`: show the coarsest level first, then let the engine stream detail up to
+   * `splatBudget` splats (0 = no limit). Timings land in `window.__splatTimings`.
+   */
+  lod?: { splatBudget: number }
   onStatus: (s: SplatStatus) => void
   onFirstInteraction?: () => void
   /**
@@ -102,7 +107,7 @@ const v = (p: [number, number, number]) => new Vec3(p[0], p[1], p[2])
 const EDITABLE = "input, textarea, select, [contenteditable='true']"
 
 export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function SplatCanvas(
-  { src, home, rotation, pixelRatio = 1, focusDamping, onStatus, onFirstInteraction, onFrame },
+  { src, home, rotation, pixelRatio = 1, focusDamping, lod, onStatus, onFirstInteraction, onFrame },
   ref,
 ) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -125,6 +130,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   frameRef.current = onFrame
   const ratioRef = React.useRef(pixelRatio)
   ratioRef.current = pixelRatio
+  const lodRef = React.useRef(lod)
   const dampingRef = React.useRef(focusDamping)
   dampingRef.current = focusDamping
 
@@ -158,6 +164,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       gsplat.workBufferUpdate = WORKBUFFER_UPDATE_ONCE
     },
     centers: () => {
+      // A streamed (octree) resource has no centres; its object stats come precomputed.
       const resource = splatRef.current?.gsplat?.resource as { centers?: Float32Array } | null | undefined
       return resource?.centers ?? null
     },
@@ -215,13 +222,55 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     controls.reset(v(homeRef.current.target), v(homeRef.current.position))
     controlsRef.current = controls
 
+    // Load timings for the .sog vs streamed comparison, from the start of this world's load.
+    const t0 = performance.now()
+    const timings: Record<string, number> = {}
+    const mark = (name: string) => {
+      if (timings[name] !== undefined) return
+      timings[name] = Math.round(performance.now() - t0)
+      ;(window as unknown as { __splatTimings?: object }).__splatTimings = { src, ...timings }
+      console.info(`[splat] ${name}: ${timings[name]} ms`, src)
+    }
+    const lodConfig = lodRef.current
+    if (lodConfig) app.scene.gsplat.splatBudget = lodConfig.splatBudget
+    let unclamped = false
+    // "Ready" is also reported before anything was requested, so a phase only counts once loading was seen.
+    let sawLoading = false
+    // Fires every frame with whether all the detail the view wants is resident, and how much is still loading.
+    app.systems.gsplat?.on("frame:ready", (_camera: unknown, _layer: unknown, ready: boolean, loading: number) => {
+      const comp = splatRef.current?.gsplat
+      if (!comp) return
+      if (loading > 0) sawLoading = true
+      if (!lodConfig) {
+        if (ready) mark("fullDetail")
+        return
+      }
+      if (!ready || loading > 0 || !sawLoading) return
+      if (!unclamped) {
+        // The coarse level is on screen: now let the engine stream the detail the camera needs.
+        mark("firstView")
+        unclamped = true
+        sawLoading = false
+        comp.lodRangeMin = 0
+        comp.lodRangeMax = 1000
+      } else {
+        mark("fullDetail")
+      }
+    })
+
     const asset = new Asset("world", "gsplat", { url: src })
     asset.on("progress", (received: number, total: number) =>
       statusRef.current({ kind: "loading", progress: total ? received / total : null }),
     )
     asset.ready(() => {
       const splat = new Entity("splat")
-      splat.addComponent("gsplat", { asset })
+      splat.addComponent("gsplat", { asset, unified: true })
+      const octree = (splat.gsplat!.resource as { octree?: { lodLevels?: number } } | null)?.octree
+      if (lodConfig && octree?.lodLevels) {
+        // Coarsest level only for the fastest first view.
+        splat.gsplat!.lodRangeMin = splat.gsplat!.lodRangeMax = octree.lodLevels - 1
+      }
+      mark(lodConfig ? "manifest" : "downloaded")
       splat.setLocalEulerAngles(rotation[0], rotation[1], rotation[2])
       app.root.addChild(splat)
       splat.gsplat!.setWorkBufferModifier({ glsl: FOCUS_GLSL })

@@ -48,6 +48,22 @@ function focusFor(o: WorldObject, stats: SplatStats | undefined): Focus | null {
   return { maskId: stats.maskId, near: stats.near, far: stats.far, color }
 }
 
+const subscribeNoop = () => () => {}
+
+/**
+ * `?splat=lod` / `?splat=sog`, remembered for the tab: the app's own routing rewrites the query on every
+ * navigation and drops parameters it doesn't know.
+ */
+function readLodFlag() {
+  const fromUrl = new URLSearchParams(window.location.search).get("splat")
+  try {
+    if (fromUrl === "lod" || fromUrl === "sog") window.sessionStorage.setItem("world-parts:splat", fromUrl)
+    return (fromUrl ?? window.sessionStorage.getItem("world-parts:splat")) === "lod"
+  } catch {
+    return fromUrl === "lod"
+  }
+}
+
 export type SplatViewHandle = { flyTo: (pose: CameraPose) => void; reset: () => void }
 
 type SplatViewProps = {
@@ -78,6 +94,15 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
   const { state } = useWorld()
   const world = worldOf(state.roomId)
+  // Spike: `?splat=lod` streams the level-of-detail version where a room has one; everything else is unchanged.
+  const wantLod = React.useSyncExternalStore(subscribeNoop, readLodFlag, () => false)
+  const lodWorld = wantLod ? world.splat.lod : undefined
+  // Phones get a splat budget; desktops stream the full detail.
+  const coarsePointer = React.useSyncExternalStore(
+    subscribeNoop,
+    () => window.matchMedia("(pointer: coarse)").matches,
+    () => false,
+  )
   const readyRef = React.useRef(onReadyChange)
   readyRef.current = onReadyChange
   React.useEffect(() => {
@@ -99,14 +124,36 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   const maskKey = maskObjects.map((o) => o.id).join(",")
   const [stats, setStats] = React.useState<Map<string, SplatStats>>(new Map())
   React.useEffect(() => {
-    if (status.kind !== "ready") return
-    const centers = ref.current?.centers()
-    if (!centers || !maskObjects.length) return
+    if (status.kind !== "ready" || !maskObjects.length) return
     const mask = drawIdMask(maskObjects)
     ref.current?.setObjectMask(mask)
-    setStats(measureObjects(centers, mask, maskObjects))
+    const centers = ref.current?.centers()
+    if (centers) {
+      setStats(measureObjects(centers, mask, maskObjects))
+      return
+    }
+    // Streamed world: no centres in the browser, so read the stats lifted once from the full .sog.
+    if (!lodWorld?.stats) return
+    let cancelled = false
+    fetch(lodWorld.stats)
+      .then((r) => (r.ok ? (r.json() as Promise<Record<string, SplatStats>>) : null))
+      .then((json) => {
+        if (cancelled || !json) return
+        const ids = new Set(maskObjects.map((o) => o.id))
+        setStats(new Map(Object.entries(json).filter(([id]) => ids.has(id))))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure only when the set of objects changes
   }, [status.kind, maskKey])
+
+  // Dev only: export the lifted stats, to precompute them for the streamed version (stats.json).
+  React.useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return
+    ;(window as unknown as { __splatStats?: object }).__splatStats = Object.fromEntries(stats)
+  }, [stats])
 
   // Find → fly: the framed object's hand-measured pose, or home when nothing is framed.
   React.useEffect(() => {
@@ -136,7 +183,9 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     <div className="absolute inset-0 overflow-hidden bg-scene">
       <SplatCanvas
         ref={ref}
-        src={world.splat.src}
+        key={lodWorld ? "lod" : "sog"}
+        src={lodWorld ? lodWorld.src : world.splat.src}
+        lod={lodWorld ? { splatBudget: coarsePointer ? 1_000_000 : 0 } : undefined}
         home={world.home}
         rotation={world.rotation}
         pixelRatio={pixelRatio}
@@ -154,7 +203,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       {status.kind === "loading" && (
         <div role="status" className="absolute inset-0 grid place-items-center">
           <div className="flex w-56 flex-col gap-2 rounded-md bg-black/75 px-3 py-2.5 text-label text-scene-ink backdrop-blur-sm">
-            <span>{`Loading 3D world · ${world.splat.sizeLabel}`}</span>
+            <span>{`Loading 3D world · ${(lodWorld ?? world.splat).sizeLabel}`}</span>
             <span className="h-1 overflow-hidden rounded-full bg-white/15">
               <span
                 className="block h-full rounded-full bg-status-active transition-[width] duration-200"
