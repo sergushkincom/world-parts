@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "node --experimental-strip-types --experimental-detect-module --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/register.mjs --test lib/*.test.ts"
+    "test": "node --experimental-strip-types --experimental-detect-module --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./test/register.mjs --test lib/*.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/postcss": "4.3.4",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",

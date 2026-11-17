@@ -19,7 +19,7 @@ A design pass built on top of [risenW/segment-3gs](https://github.com/risenW/seg
 
 Prototype only. Not affiliated with SpAItial.
 
-![Plant overview with a part search, and the workshop with the found pump framed](docs/preview.png)
+![Plant overview with a part search, and the workshop with the found pump framed](docs/preview.webp)
 
 ## The question
 
