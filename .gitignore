@@ -157,3 +157,5 @@ public/splats/*
 !public/splats/storeroom.sog
 !public/splats/production.sog
 !public/splats/corridor.sog
+# The level-of-detail folders (public/splats/<room>-lod/) stay local: production reads them from Vercel Blob (scripts/upload-lod.mjs).
+.vercel

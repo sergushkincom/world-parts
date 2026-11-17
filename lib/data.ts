@@ -58,7 +58,16 @@ export type CameraPose = { position: [number, number, number]; target: [number, 
  */
 export interface RoomWorld {
   still: { src: string; alt: string }
-  splat: { src: string; sizeLabel: string }
+  splat: {
+    src: string
+    sizeLabel: string
+    /**
+     * Streamed level-of-detail version (spike, opt-in with `?splat=lod`): a `lod-meta.json` from
+     * `splat-transform`, the coarsest level first. `stats` are the object masks lifted once from the full .sog,
+     * because a streamed scene has no splat centres to measure in the browser.
+     */
+    lod?: { src: string; sizeLabel: string; stats: string }
+  }
   /** SpAItial exports are already y-up; kept as a knob for other sources. */
   rotation: [number, number, number]
   home: CameraPose
@@ -71,12 +80,27 @@ export interface RoomWorld {
   poses: Record<string, CameraPose>
 }
 
+/**
+ * Streamed level-of-detail splats (splat-transform, SOG v2). In production they live in Vercel Blob
+ * (NEXT_PUBLIC_SPLAT_LOD_BASE, the store's public URL); locally they are read from public/splats/.
+ */
+const LOD_BASE = process.env.NEXT_PUBLIC_SPLAT_LOD_BASE ?? ""
+const lod = (room: string) => ({
+  src: `${LOD_BASE}/splats/${room}-lod/lod-meta.json`,
+  sizeLabel: "1.3 MB first view",
+  stats: `${LOD_BASE}/splats/${room}-lod/stats.json`,
+})
+
 const HOME: CameraPose = { position: [0, 0, 0], target: [0, 0, -1] }
 
 export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   workshop: {
     still: { src: "/scene.jpg", alt: "Still frame of a factory workshop interior" },
-    splat: { src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog", sizeLabel: "24 MB" },
+    splat: {
+      src: process.env.NEXT_PUBLIC_SPLAT_URL ?? "/splats/workshop.sog",
+      sizeLabel: "24 MB",
+      lod: lod("workshop"),
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,
@@ -92,7 +116,11 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   },
   storeroom: {
     still: { src: "/rooms/storeroom.jpg", alt: "Still frame of the parts storeroom: shelving on three sides and a rack in the middle" },
-    splat: { src: "/splats/storeroom.sog", sizeLabel: "24 MB" },
+    splat: {
+      src: "/splats/storeroom.sog",
+      sizeLabel: "24 MB",
+      lod: lod("storeroom"),
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,
@@ -100,7 +128,11 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   },
   production: {
     still: { src: "/rooms/production.jpg", alt: "Still frame of the production hall: two rows of four CNC machines" },
-    splat: { src: "/splats/production.sog", sizeLabel: "24 MB" },
+    splat: {
+      src: "/splats/production.sog",
+      sizeLabel: "24 MB",
+      lod: lod("production"),
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,
@@ -108,7 +140,11 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   },
   corridor: {
     still: { src: "/rooms/corridor.jpg", alt: "Still frame of the corridor with doors to the rooms on both sides" },
-    splat: { src: "/splats/corridor.sog", sizeLabel: "23 MB" },
+    splat: {
+      src: "/splats/corridor.sog",
+      sizeLabel: "23 MB",
+      lod: lod("corridor"),
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,
