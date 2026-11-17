@@ -109,7 +109,11 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   },
   storeroom: {
     still: { src: "/rooms/storeroom.jpg", alt: "Still frame of the parts storeroom: shelving on three sides and a rack in the middle" },
-    splat: { src: "/splats/storeroom.sog", sizeLabel: "24 MB" },
+    splat: {
+      src: "/splats/storeroom.sog",
+      sizeLabel: "24 MB",
+      lod: { src: "/splats/storeroom-lod/lod-meta.json", sizeLabel: "1.3 MB first view", stats: "/splats/storeroom-lod/stats.json" },
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,
@@ -117,7 +121,11 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   },
   production: {
     still: { src: "/rooms/production.jpg", alt: "Still frame of the production hall: two rows of four CNC machines" },
-    splat: { src: "/splats/production.sog", sizeLabel: "24 MB" },
+    splat: {
+      src: "/splats/production.sog",
+      sizeLabel: "24 MB",
+      lod: { src: "/splats/production-lod/lod-meta.json", sizeLabel: "1.3 MB first view", stats: "/splats/production-lod/stats.json" },
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,
@@ -125,7 +133,11 @@ export const WORLDS: Partial<Record<RoomId, RoomWorld>> = {
   },
   corridor: {
     still: { src: "/rooms/corridor.jpg", alt: "Still frame of the corridor with doors to the rooms on both sides" },
-    splat: { src: "/splats/corridor.sog", sizeLabel: "23 MB" },
+    splat: {
+      src: "/splats/corridor.sog",
+      sizeLabel: "23 MB",
+      lod: { src: "/splats/corridor-lod/lod-meta.json", sizeLabel: "1.3 MB first view", stats: "/splats/corridor-lod/stats.json" },
+    },
     rotation: [0, 0, 0],
     home: HOME,
     cardTurn: 0.3,
