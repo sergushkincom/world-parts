@@ -4,6 +4,8 @@
 
 A design prototype: parts data attached to objects in a segmented 3D world. Built in a day; the segmentation is mocked.
 
+**Design case study:** [World Parts on Dribbble](https://dribbble.com/shots/27887061-Design-Case-Study-13-World-Parts-Find-Spare-Parts-in-3D)
+
 ![World Parts: search for a spare part and land on it in the scanned room](docs/readme-hero.png)
 
 ## Try it in 30 seconds
