@@ -6,7 +6,7 @@ A design prototype: parts data attached to objects in a segmented 3D world. Buil
 
 **Design case study:** [World Parts on Dribbble](https://dribbble.com/shots/27887061-Design-Case-Study-13-World-Parts-Find-Spare-Parts-in-3D)
 
-![World Parts: search for a spare part and land on it in the scanned room](docs/readme-hero.png)
+![Demo, 12 s loop: search for a mechanical seal, open its location, and land in the scanned workshop with the cabinet highlighted and its bins open](docs/demo.webp)
 
 ## Try it in 30 seconds
 
