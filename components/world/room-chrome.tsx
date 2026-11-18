@@ -13,6 +13,7 @@ import { ShortcutsPanel } from "@/components/world/shortcuts-panel"
 import { ViewPill } from "@/components/world/view-pill"
 import type { SplatQuality } from "@/lib/splat-quality"
 import type { Point } from "@/lib/data"
+import { TOUR_HINT } from "@/lib/tour"
 
 type ViewMode = "still" | "live"
 
@@ -34,6 +35,7 @@ export function RoomChrome({
   onNotify,
   hintBlocked,
   onResetOrbit,
+  showTourHint,
 }: {
   roomId: RoomId
   q: string
@@ -53,16 +55,18 @@ export function RoomChrome({
   /** Link-copied toast is using the chip slot. */
   hintBlocked: boolean
   onResetOrbit: () => void
+  /** Idle tour is running. Its line replaces the orbit hint until the viewer takes the camera. */
+  showTourHint: boolean
 }) {
   const roomName = ROOMS.find((r) => r.id === roomId)?.name ?? "Room"
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false)
   const { touch, tipsOff, hint, setGate } = useShortcutLearning()
-  const orbitVisible = showOrbitHint && !touch && !tipsOff
+  const orbitVisible = showOrbitHint && !showTourHint && !touch && !tipsOff
 
   React.useEffect(() => {
-    setGate({ paused: orbitVisible || shortcutsOpen || hintBlocked, coachGestures: live })
-  }, [orbitVisible, shortcutsOpen, hintBlocked, live, setGate])
+    setGate({ paused: orbitVisible || showTourHint || shortcutsOpen || hintBlocked, coachGestures: live })
+  }, [orbitVisible, showTourHint, shortcutsOpen, hintBlocked, live, setGate])
 
   return (
     <>
@@ -123,7 +127,16 @@ export function RoomChrome({
         />
       </div>
 
-      <HintSlot active={orbitVisible || hint != null}>
+      <HintSlot active={orbitVisible || showTourHint || hint != null}>
+        {showTourHint && (
+          <p
+            role="status"
+            data-tour-hint
+            className="max-w-[calc(100vw-6rem)] rounded-full bg-black/75 px-3 py-1.5 text-center text-label text-scene-ink shadow-lg backdrop-blur-sm"
+          >
+            {TOUR_HINT}
+          </p>
+        )}
         {orbitVisible && (
           <p className="max-w-[calc(100vw-6rem)] rounded-full bg-black/75 px-3 py-1.5 text-center text-label text-scene-ink shadow-lg backdrop-blur-sm">
             Drag to orbit · scroll to zoom · ? all shortcuts

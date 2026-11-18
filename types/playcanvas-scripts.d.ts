@@ -13,6 +13,8 @@ declare module "playcanvas/scripts/esm/camera-controls.mjs" {
     zoomRange: Vec2
     /** Share of the way left after each ms of a focus/reset flight; 0 jumps. Library default 0.98. */
     focusDamping: number
+    /** Where the live pose is looking. A shared vector: clone it before the next camera call. */
+    readonly focusPoint: Vec3
     focus(point: Vec3, resetZoom?: boolean): void
     reset(focus: Vec3, position: Vec3): void
   }

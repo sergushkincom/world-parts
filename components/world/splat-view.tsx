@@ -4,10 +4,12 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import { TriangleAlertIcon } from "lucide-react"
 import { OBJECT_PALETTE, worldOf, type CameraPose, type WorldObject } from "@/lib/data"
+import { tourStops } from "@/lib/tour"
 import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
 import type { CameraView } from "@/lib/minimap"
 import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
 import { Button } from "@/components/ui/button"
+import { useAttractTour } from "@/hooks/use-attract-tour"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
 
@@ -79,10 +81,17 @@ type SplatViewProps = {
   focusDamping?: number
   /** Replaces the marker's own click (select, frame, open the card). */
   onPick?: (id: string) => void
+  /**
+   * Idle object tour. On in the room's Live 3D, off in the split view, where a row already owns the camera.
+   * The tour never opens the parts card.
+   */
+  attract?: boolean
+  /** True while the tour is visiting. The room uses it for the "watch, or drag" hint. */
+  onAttractChange?: (active: boolean) => void
 }
 
 export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
-  { onFallback, onCamera, onReadyChange, onFirstDrag, pixelRatio, focusDamping, onPick },
+  { onFallback, onCamera, onReadyChange, onFirstDrag, pixelRatio, focusDamping, onPick, attract = false, onAttractChange },
   handle,
 ) {
   const ref = React.useRef<SplatCanvasHandle>(null)
@@ -156,17 +165,57 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   }, [stats])
 
   // Find → fly: the framed object's hand-measured pose, or home when nothing is framed.
+  // While the tour is running this stays out of the way, or a mask arriving would pull the camera home.
+  // After the viewer stops the tour, `homeLock` does the same job: the camera stays where they left it.
+  const attractRef = React.useRef(false)
+  const homeLock = React.useRef(false)
+  const stops = tourStops(
+    state.roomId,
+    state.objects
+      .filter((o) => DRAWABLE.includes(o.status) && (stats.get(o.id)?.anchor ?? world.poses[o.id]?.target))
+      .map((o) => o.id),
+  )
+  const tour = useAttractTour({
+    enabled: attract,
+    ready: status.kind === "ready",
+    framedId: state.framedId,
+    cardId: state.cardId,
+    stops,
+    flyTo: (id) => {
+      const anchor = stats.get(id)?.anchor
+      const pose = world.poses[id] ?? (anchor ? poseFromAnchor(anchor) : undefined)
+      if (pose) ref.current?.flyTo(pose)
+    },
+    goHome: () => ref.current?.reset(),
+    hold: () => ref.current?.hold(),
+    onUserStop: () => {
+      homeLock.current = true
+    },
+  })
+  attractRef.current = tour.phase !== "off"
+  const attractChangeRef = React.useRef(onAttractChange)
+  attractChangeRef.current = onAttractChange
+  React.useEffect(() => {
+    attractChangeRef.current?.(tour.phase !== "off")
+  }, [tour.phase])
+  React.useEffect(() => () => attractChangeRef.current?.(false), [])
+
   React.useEffect(() => {
     if (status.kind !== "ready") return
+    if (attractRef.current && !state.framedId) return
     const anchor = state.framedId ? stats.get(state.framedId)?.anchor : undefined
     const pose = state.framedId ? (world.poses[state.framedId] ?? (anchor ? poseFromAnchor(anchor) : undefined)) : undefined
-    if (pose) ref.current?.flyTo(state.cardId ? besideCard(pose, world.cardTurn) : pose)
-    else if (!state.framedId) ref.current?.reset()
+    if (pose) {
+      homeLock.current = false
+      ref.current?.flyTo(state.cardId ? besideCard(pose, world.cardTurn) : pose)
+    } else if (!state.framedId && !homeLock.current) ref.current?.reset()
   }, [state.framedId, state.cardId, status.kind, stats, world])
 
-  // Highlight: what the pointer is on, else the found object, else a single selection.
+  // Highlight: the tour's hold, else what the pointer is on, else the found object, else a single selection.
+  // The tour does not select, frame or open the card — the tint is only the hold.
+  const tourId = tour.highlight ? tour.objectId : null
   const focusId =
-    state.hoveredId ?? state.framedId ?? (state.selection.length === 1 ? state.selection[0] : null)
+    tourId ?? state.hoveredId ?? state.framedId ?? (state.selection.length === 1 ? state.selection[0] : null)
   const focusObject = state.objects.find((o) => o.id === focusId)
   React.useEffect(() => {
     if (status.kind !== "ready") return
@@ -180,7 +229,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   }, [status.kind])
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-scene">
+    <div className="absolute inset-0 overflow-hidden bg-scene" data-tour={tour.phase}>
       <SplatCanvas
         ref={ref}
         key={lodWorld ? "lod" : "sog"}
@@ -198,7 +247,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         }}
       />
 
-      {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} onPick={onPick} />}
+      {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} onPick={onPick} pulseId={tourId} />}
 
       {status.kind === "loading" && (
         <div role="status" className="absolute inset-0 grid place-items-center">

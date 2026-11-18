@@ -28,9 +28,14 @@ type MarkersProps = {
   stats: Map<string, SplatStats>
   /** Replaces the default click: select, frame and open the card. */
   onPick?: (id: string) => void
+  /** Idle tour: pulse this label, and keep its name up, without selecting it or opening the card. */
+  pulseId?: string | null
 }
 
-export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(function SplatMarkers({ stats, onPick }, ref) {
+export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(function SplatMarkers(
+  { stats, onPick, pulseId = null },
+  ref,
+) {
   const { state, select, hover, frame, openCard } = useWorld()
   const poses = worldOf(state.roomId).poses
   const nodes = React.useRef(new Map<string, HTMLButtonElement>())
@@ -59,7 +64,8 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
         const isSel = selected.has(o.id)
         const isHover = state.hoveredId === o.id
         const isFramed = state.framedId === o.id
-        const active = isSel || isHover || isFramed
+        const isTour = pulseId === o.id
+        const active = isSel || isHover || isFramed || isTour
         // As on the still: under the panel breakpoint only the active object keeps its text.
         const compact = !active
         return (
@@ -91,7 +97,7 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
             style={{ borderColor: active ? color : "transparent" }}
           >
             <span className="relative grid size-2 place-items-center">
-              {isFramed && (
+              {(isFramed || isTour) && (
                 <span aria-hidden className="pin-pulse absolute inset-0 rounded-full" style={{ backgroundColor: color }} />
               )}
               <span aria-hidden className="relative size-2 rounded-full" style={{ backgroundColor: color }} />

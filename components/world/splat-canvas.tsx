@@ -74,6 +74,8 @@ export type SplatCanvasHandle = {
   centers: () => Float32Array | null
   flyTo: (pose: CameraPose) => void
   reset: () => void
+  /** Stop an in-flight `flyTo` and leave the camera where it is. */
+  hold: () => void
   getPose: () => CameraPose | null
 }
 
@@ -170,6 +172,15 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     },
     flyTo: (pose) => controlsRef.current?.reset(v(pose.target), v(pose.position)),
     reset: () => controlsRef.current?.reset(v(homeRef.current.target), v(homeRef.current.position)),
+    hold: () => {
+      const cam = cameraRef.current
+      const controls = controlsRef.current
+      if (!cam || !controls) return
+      // Aim the flight at the pose we're already in, so the ease ends here instead of at the next object.
+      const position = cam.getPosition().clone()
+      const focus = controls.focusPoint.clone()
+      controls.reset(focus, position)
+    },
     getPose: () => {
       const cam = cameraRef.current
       const controls = controlsRef.current
