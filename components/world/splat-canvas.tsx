@@ -23,8 +23,11 @@ import {
 import { CameraControls } from "playcanvas/scripts/esm/camera-controls.mjs"
 import { STILL_PROJECT_GLSL } from "@/lib/splat-mask"
 import type { CameraView } from "@/lib/minimap"
+import type { Aabb, LocomotionMode, Stick } from "@/lib/walk"
 import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { createGestureTracker, trackGesture, type GestureId } from "@/lib/shortcut-learning"
+import { attachWalkRig, type WalkRig } from "@/components/world/walk-rig"
+import { WalkPad } from "@/components/world/walk-pad"
 
 export type CameraPose = { position: [number, number, number]; target: [number, number, number] }
 
@@ -96,6 +99,10 @@ type Props = {
   lod?: { splatBudget: number }
   onStatus: (s: SplatStatus) => void
   onFirstInteraction?: () => void
+  /** Orbit, or first-person walk. Walk ignores keys unless this canvas is focused. */
+  locomotion?: LocomotionMode
+  /** Room walls from the minimap calibration, with eye height as the vertical lock. */
+  bounds: Aabb
   /**
    * Called every frame after the camera moved, with a projector for 3D points and where the camera stands and
    * looks on the floor. Write to the DOM here, not to state.
@@ -107,7 +114,19 @@ const v = (p: [number, number, number]) => new Vec3(p[0], p[1], p[2])
 const EDITABLE = "input, textarea, select, [contenteditable='true']"
 
 export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function SplatCanvas(
-  { src, home, rotation, pixelRatio = 1, focusDamping, lod, onStatus, onFirstInteraction, onFrame },
+  {
+    src,
+    home,
+    rotation,
+    pixelRatio = 1,
+    focusDamping,
+    lod,
+    onStatus,
+    onFirstInteraction,
+    onFrame,
+    locomotion = "orbit",
+    bounds,
+  },
   ref,
 ) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -133,6 +152,11 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   const lodRef = React.useRef(lod)
   const dampingRef = React.useRef(focusDamping)
   dampingRef.current = focusDamping
+  const locomotionRef = React.useRef(locomotion)
+  locomotionRef.current = locomotion
+  const boundsRef = React.useRef(bounds)
+  boundsRef.current = bounds
+  const rigRef = React.useRef<WalkRig | null>(null)
 
   React.useImperativeHandle(ref, () => ({
     focus: (focus) => {
@@ -168,8 +192,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       const resource = splatRef.current?.gsplat?.resource as { centers?: Float32Array } | null | undefined
       return resource?.centers ?? null
     },
-    flyTo: (pose) => controlsRef.current?.reset(v(pose.target), v(pose.position)),
-    reset: () => controlsRef.current?.reset(v(homeRef.current.target), v(homeRef.current.position)),
+    flyTo: (pose) => rigRef.current?.flyTo(pose),
+    reset: () => rigRef.current?.reset(homeRef.current),
     getPose: () => {
       const cam = cameraRef.current
       const controls = controlsRef.current
@@ -221,6 +245,17 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     if (dampingRef.current !== undefined) controls.focusDamping = dampingRef.current
     controls.reset(v(homeRef.current.target), v(homeRef.current.position))
     controlsRef.current = controls
+
+    const rig = attachWalkRig({
+      app,
+      canvas,
+      camera,
+      controls,
+      getBounds: () => boundsRef.current,
+      getDamping: () => dampingRef.current,
+    })
+    rigRef.current = rig
+    rig.setMode(locomotionRef.current)
 
     // Load timings for the .sog vs streamed comparison, from the start of this world's load.
     const t0 = performance.now()
@@ -323,14 +358,14 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     }
     canvas.addEventListener("pointerdown", firstDrag)
 
-    // Orbit mode ignores W/A/S/D (they only drive fly mode, which is off), so typing elsewhere can't move the camera.
+    // R resets from anywhere that isn't a field or a menu. Walk's own keys are on the canvas, so they never reach search.
     const typing = () => (document.activeElement as HTMLElement | null)?.closest?.(EDITABLE) != null
     const onKey = (e: KeyboardEvent) => {
       if (typing() || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
       if (document.querySelector("[role='menu'], [role='alertdialog'], [role='dialog']")) return
       if (e.key === "r" || e.key === "R") {
         e.preventDefault()
-        controls.reset(v(homeRef.current.target), v(homeRef.current.position))
+        rig.reset(homeRef.current)
         noteKeyRef.current("reset")
       }
     }
@@ -341,6 +376,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       window.removeEventListener("keydown", onKey)
       app.off("postrender", onUpdate)
       observer.disconnect()
+      rig.destroy()
+      rigRef.current = null
       controlsRef.current = null
       splatRef.current = null
       maskRef.current?.destroy()
@@ -386,6 +423,14 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   }, [focusDamping])
 
   React.useEffect(() => {
+    rigRef.current?.setMode(locomotion)
+  }, [locomotion])
+
+  const onStick = React.useCallback((stick: Stick) => {
+    rigRef.current?.setStick(stick)
+  }, [])
+
+  React.useEffect(() => {
     const app = appRef.current
     const canvas = canvasRef.current
     if (!app || !canvas) return
@@ -394,11 +439,23 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   }, [pixelRatio])
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 size-full cursor-grab touch-none outline-none active:cursor-grabbing"
-      aria-label="Live 3D view of the workshop. Drag to look around, scroll or pinch to zoom."
-      tabIndex={0}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        data-locomotion={locomotion}
+        className={
+          locomotion === "walk"
+            ? "absolute inset-0 size-full touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
+            : "absolute inset-0 size-full cursor-grab touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
+        }
+        aria-label={
+          locomotion === "walk"
+            ? "Live 3D view of the room. Drag to look. When this view is focused, WASD or arrow keys walk at eye height inside the room."
+            : "Live 3D view of the room. Drag to look around, scroll or pinch to zoom."
+        }
+        tabIndex={0}
+      />
+      <WalkPad active={locomotion === "walk"} onStick={onStick} />
+    </>
   )
 })

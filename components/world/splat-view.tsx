@@ -3,7 +3,8 @@
 import * as React from "react"
 import dynamic from "next/dynamic"
 import { TriangleAlertIcon } from "lucide-react"
-import { OBJECT_PALETTE, worldOf, type CameraPose, type WorldObject } from "@/lib/data"
+import { OBJECT_PALETTE, PLAN_CALIBRATION, worldOf, type CameraPose, type WorldObject } from "@/lib/data"
+import { roomAabb, type LocomotionMode } from "@/lib/walk"
 import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
 import type { CameraView } from "@/lib/minimap"
 import type { Focus, SplatCanvasHandle, SplatStatus } from "@/components/world/splat-canvas"
@@ -79,10 +80,12 @@ type SplatViewProps = {
   focusDamping?: number
   /** Replaces the marker's own click (select, frame, open the card). */
   onPick?: (id: string) => void
+  /** Orbit, or walk at eye height inside the room. The view pill owns the choice. */
+  locomotion?: LocomotionMode
 }
 
 export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
-  { onFallback, onCamera, onReadyChange, onFirstDrag, pixelRatio, focusDamping, onPick },
+  { onFallback, onCamera, onReadyChange, onFirstDrag, pixelRatio, focusDamping, onPick, locomotion = "orbit" },
   handle,
 ) {
   const ref = React.useRef<SplatCanvasHandle>(null)
@@ -94,6 +97,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
   const { state } = useWorld()
   const world = worldOf(state.roomId)
+  const bounds = roomAabb(PLAN_CALIBRATION[state.roomId]?.world ?? [[-4, -12], [4, 0]], world.home.position[1])
   // Spike: `?splat=lod` streams the level-of-detail version where a room has one; everything else is unchanged.
   const wantLod = React.useSyncExternalStore(subscribeNoop, readLodFlag, () => false)
   const lodWorld = wantLod ? world.splat.lod : undefined
@@ -190,6 +194,8 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         rotation={world.rotation}
         pixelRatio={pixelRatio}
         focusDamping={focusDamping}
+        locomotion={locomotion}
+        bounds={bounds}
         onStatus={setStatus}
         onFirstInteraction={onFirstDrag}
         onFrame={(project, view) => {
