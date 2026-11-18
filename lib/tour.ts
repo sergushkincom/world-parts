@@ -61,6 +61,8 @@ export type TourGate = {
   reducedMotion: boolean
   /** `?present=1`, for recording. Runs even when the viewer prefers reduced motion. */
   present: boolean
+  /** First-person Walk owns the camera. The tour stays off for the whole time it is on. */
+  walking: boolean
 }
 
 const IDLE: TourState = {
@@ -87,9 +89,9 @@ export function tourStops(roomId: string, candidates: readonly string[]): string
   return WORKSHOP_TOUR_ORDER.filter((id) => have.has(id))
 }
 
-/** Ready, nothing framed or open, and motion is allowed — or a recording forces it. */
+/** Ready, nothing framed or open, Orbit (not Walk), and motion is allowed — or a recording forces the motion check. */
 export function tourAllowed(gate: TourGate): boolean {
-  if (!gate.ready || gate.framedId || gate.cardId) return false
+  if (!gate.ready || gate.framedId || gate.cardId || gate.walking) return false
   if (gate.reducedMotion && !gate.present) return false
   return true
 }

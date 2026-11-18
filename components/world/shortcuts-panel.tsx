@@ -174,6 +174,8 @@ export function ShortcutsPanel({
                 <h3 className="mb-1 text-label tracking-wider text-scene-ink/50 uppercase">View</h3>
                 <dl className="flex flex-col gap-1.5">
                   <PlainRow action="Orbit" how="Drag" />
+                  <PlainRow action="Walk" how="WASD or arrows, view focused" />
+                  <PlainRow action="Look while walking" how="Drag" />
                   <PlainRow
                     action="Pan"
                     how={<span className="flex items-center gap-1">Right-drag or {keys("Shift")} + drag</span>}
@@ -235,6 +237,7 @@ function GestureList({ seen }: { seen: ReadonlySet<GestureId> }) {
     <section aria-label="Gestures">
       <h3 className="mb-1 text-label tracking-wider text-scene-ink/50 uppercase">Gestures</h3>
       <dl className="flex flex-col gap-1.5">
+        <PlainRow action="Walk" how="Drag the stick" />
         {GESTURES.map((gesture) => (
           <div key={gesture.id} className="flex items-center justify-between gap-3 text-label">
             <dt className="flex min-w-0 items-center gap-1.5 text-scene-ink/80">

@@ -17,7 +17,7 @@ import {
   type TourTiming,
 } from "./tour.ts"
 
-const open: TourGate = { ready: true, framedId: null, cardId: null, reducedMotion: false, present: false }
+const open: TourGate = { ready: true, framedId: null, cardId: null, reducedMotion: false, present: false, walking: false }
 
 const FAST: TourTiming = { leadInMs: 10, flyMs: 10, holdMs: 10 }
 
@@ -74,6 +74,11 @@ describe("when the tour may start", () => {
     assert.equal(tourAllowed({ ...open, reducedMotion: true }), false)
     assert.equal(tourAllowed({ ...open, reducedMotion: true, present: true }), true)
     assert.equal(tourAllowed({ ...open, reducedMotion: true, present: true, framedId: "obj-hose" }), false)
+  })
+
+  it("stays off for the whole time the camera is walking, even when a recording forces it", () => {
+    assert.equal(tourAllowed({ ...open, walking: true }), false)
+    assert.equal(tourAllowed({ ...open, walking: true, present: true }), false)
   })
 })
 

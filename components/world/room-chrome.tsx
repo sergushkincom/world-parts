@@ -12,6 +12,7 @@ import { HintSlot, ShortcutHint } from "@/components/world/shortcut-hint"
 import { ShortcutsPanel } from "@/components/world/shortcuts-panel"
 import { ViewPill } from "@/components/world/view-pill"
 import type { SplatQuality } from "@/lib/splat-quality"
+import type { LocomotionMode } from "@/lib/walk"
 import type { Point } from "@/lib/data"
 import { TOUR_HINT } from "@/lib/tour"
 
@@ -22,6 +23,9 @@ export function RoomChrome({
   q,
   mode,
   onMode,
+  locomotion,
+  onLocomotion,
+  walkDisabledReason,
   onReset,
   quality,
   onQuality,
@@ -41,6 +45,10 @@ export function RoomChrome({
   q: string
   mode: ViewMode
   onMode: (mode: ViewMode) => void
+  locomotion: LocomotionMode
+  onLocomotion: (locomotion: LocomotionMode) => void
+  /** Why Walk is greyed out, or null when the live world can be walked. */
+  walkDisabledReason: string | null
   onReset: () => void
   quality: SplatQuality
   onQuality: (quality: SplatQuality) => void
@@ -139,7 +147,9 @@ export function RoomChrome({
         )}
         {orbitVisible && (
           <p className="max-w-[calc(100vw-6rem)] rounded-full bg-black/75 px-3 py-1.5 text-center text-label text-scene-ink shadow-lg backdrop-blur-sm">
-            Drag to orbit · scroll to zoom · ? all shortcuts
+            {locomotion === "walk"
+              ? "Drag to look · WASD to walk · ? all shortcuts"
+              : "Drag to orbit · scroll to zoom · ? all shortcuts"}
           </p>
         )}
         <ShortcutHint />
@@ -148,6 +158,9 @@ export function RoomChrome({
       <ViewPill
         mode={mode}
         onMode={onMode}
+        locomotion={locomotion}
+        onLocomotion={onLocomotion}
+        walkDisabledReason={walkDisabledReason}
         onReset={onReset}
         quality={quality}
         onQuality={onQuality}

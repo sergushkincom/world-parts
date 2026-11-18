@@ -47,6 +47,8 @@ const OFF: AttractView = { phase: "off", objectId: null, highlight: false }
  * Plays the idle tour on the live camera. The state machine is `lib/tour`; this hook
  * owns the clock, the reduced-motion and `?present=1` gates, and the first input that ends it.
  * A Find (framed or card) pauses without freezing, so that flight still runs.
+ * Walk ends the tour for good: coming back to Orbit does not start it again.
+ * A callout click is a pointer, so it stops the tour and leaves the click's own flight.
  * Any other stop freezes the camera where it is.
  */
 export function useAttractTour({
@@ -54,6 +56,7 @@ export function useAttractTour({
   ready,
   framedId,
   cardId,
+  walking = false,
   stops,
   flyTo,
   goHome,
@@ -64,6 +67,8 @@ export function useAttractTour({
   ready: boolean
   framedId: string | null
   cardId: string | null
+  /** First-person Walk. The tour does not run, and does not resume when Orbit returns. */
+  walking?: boolean
   stops: readonly string[]
   flyTo: (id: string) => void
   goHome: () => void
@@ -86,9 +91,9 @@ export function useAttractTour({
   onUserStopRef.current = onUserStop
   stopsRef.current = stops
   const stopsKey = stops.join("\0")
-  const allowed = tourAllowed({ ready, framedId, cardId, reducedMotion, present })
-  // A frame or an open card is about to move the camera itself.
-  const release = Boolean(framedId || cardId)
+  const allowed = tourAllowed({ ready, framedId, cardId, reducedMotion, present, walking })
+  // A frame or an open card is about to move the camera itself. Walk already owns it.
+  const release = Boolean(framedId || cardId || walking)
 
   const publish = React.useCallback((state: TourState) => {
     setView((current) =>
@@ -102,6 +107,14 @@ export function useAttractTour({
     if (!enabled) return
     if (!allowed) {
       const prev = machine.current
+      // Walk is a choice of camera, not a pause. Stay off after Orbit comes back.
+      if (walking) {
+        if (prev.phase === "off" && prev.dismissed) return
+        const next = stopTour(prev)
+        machine.current = next
+        if (prev.phase !== "off") publish(next)
+        return
+      }
       if (prev.phase === "off") return
       const next = pauseTour(prev)
       machine.current = next
@@ -135,7 +148,7 @@ export function useAttractTour({
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
-  }, [enabled, allowed, release, stopsKey, publish])
+  }, [enabled, allowed, release, walking, stopsKey, publish])
 
   React.useEffect(() => {
     if (!enabled) return

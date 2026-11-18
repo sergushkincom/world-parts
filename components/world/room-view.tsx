@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { DOORS, ROOMS, STORAGE_KEYS, VIEWPOINTS, isScanned, worldOf, type RoomId, type WorldObject } from "@/lib/data"
+import type { LocomotionMode } from "@/lib/walk"
 import { planMapper } from "@/lib/minimap"
 import { readJSON, writeJSON } from "@/lib/storage"
 import { isSplatQuality, pixelRatioFor, type SplatQuality } from "@/lib/splat-quality"
@@ -142,6 +143,7 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
   const { noteKey } = useShortcutLearning()
   useObjectInHash(route)
   const [mode, setMode] = React.useState<ViewMode>("still")
+  const [locomotion, setLocomotion] = React.useState<LocomotionMode>("orbit")
   const splatRef = React.useRef<SplatViewHandle>(null)
   const minimapRef = React.useRef<MinimapHandle>(null)
   const [liveReady, setLiveReady] = React.useState(false)
@@ -207,6 +209,9 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
           q={route.q}
           mode={mode}
           onMode={setMode}
+          locomotion={locomotion}
+          onLocomotion={setLocomotion}
+          walkDisabledReason={mode !== "live" ? "Switch to Live 3D to walk" : null}
           onReset={() => (mode === "live" ? splatRef.current?.reset() : frame(null))}
           quality={quality}
           onQuality={setQuality}
@@ -233,6 +238,7 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
             onReadyChange={setLiveReady}
             onFirstDrag={dismissOrbitHint}
             onAttractChange={setTouring}
+            locomotion={mode === "live" ? locomotion : "orbit"}
           />
         ) : (
           <Scene />
