@@ -44,15 +44,23 @@ type MarkerNode = {
  * Product callouts for the live world. A dot stays on the object; a leader runs
  * to a card (name, number, stock or availability) on the clearer side of the
  * screen. `place` moves them every frame. React only re-renders for hover,
- * selection, framing, or a resize.
+ * selection, framing, the idle-tour highlight, or a resize.
  */
 type MarkersProps = {
   stats: Map<string, SplatStats>
   /** Replaces the default click: select, frame and open the card. */
   onPick?: (id: string) => void
+  /**
+   * Idle tour: emphasize this callout and pulse its dot, without selecting it,
+   * framing it, or opening the parts card. A click still does those.
+   */
+  pulseId?: string | null
 }
 
-export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(function SplatMarkers({ stats, onPick }, ref) {
+export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(function SplatMarkers(
+  { stats, onPick, pulseId = null },
+  ref,
+) {
   const { state, select, hover, frame, openCard } = useWorld()
   const poses = worldOf(state.roomId).poses
   const rootRef = React.useRef<HTMLDivElement>(null)
@@ -69,6 +77,7 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
   chrome.current.cardOpen = state.cardId != null
 
   const focusId =
+    (pulseId && anchors.current.has(pulseId) ? pulseId : null) ??
     (state.hoveredId && anchors.current.has(state.hoveredId) ? state.hoveredId : null) ??
     (state.framedId && anchors.current.has(state.framedId) ? state.framedId : null) ??
     (state.selection.length === 1 && anchors.current.has(state.selection[0]) ? state.selection[0] : null)
@@ -146,6 +155,7 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
   }))
 
   const pick = (id: string) => {
+    // The click is also the pointer that ends the idle tour. This flight is the callout's own.
     if (onPick) return onPick(id)
     select(id, "only")
     frame(id)
@@ -178,7 +188,7 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
         const color = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
         const emphasized = focusId === o.id
         const dimmed = focusId != null && !emphasized
-        const framed = state.framedId === o.id && !dimmed
+        const pulsing = (state.framedId === o.id || pulseId === o.id) && !dimmed
         const dotOnly = compact && !emphasized
         return (
           <span
@@ -197,7 +207,7 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
             )}
           >
             <span className="relative grid size-2.5 place-items-center">
-              {framed && <span className="pin-pulse absolute inset-0 rounded-full" style={{ backgroundColor: color }} />}
+              {pulsing && <span className="pin-pulse absolute inset-0 rounded-full" style={{ backgroundColor: color }} />}
               <span className="relative size-2.5 rounded-full ring-2 ring-black/50" style={{ backgroundColor: color }} />
               <span className="absolute size-1 rounded-full bg-white" />
             </span>

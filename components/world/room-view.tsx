@@ -152,6 +152,7 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
   const [orbitHintSeen, dismissOrbitHint, clearOrbitHint] = useStoredFlag(STORAGE_KEYS.orbitHintSeen)
   const [quality, setQuality] = useSplatQuality()
   const [toast, setToast] = React.useState<string | null>(null)
+  const [touring, setTouring] = React.useState(false)
   const toastTimer = React.useRef(0)
 
   const notify = React.useCallback((message: string) => {
@@ -224,16 +225,19 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
           onNotify={notify}
           hintBlocked={toast !== null}
           onResetOrbit={clearOrbitHint}
+          showTourHint={mode === "live" && touring}
         />
         {mode === "live" ? (
           <SplatView
             key={route.room}
             ref={splatRef}
+            attract
             pixelRatio={pixelRatioFor(quality)}
             onFallback={() => setMode("still")}
             onCamera={(view) => minimapRef.current?.setCamera(view)}
             onReadyChange={setLiveReady}
             onFirstDrag={dismissOrbitHint}
+            onAttractChange={setTouring}
             locomotion={mode === "live" ? locomotion : "orbit"}
           />
         ) : (

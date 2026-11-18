@@ -68,6 +68,8 @@ export type WalkRig = {
   setMode: (mode: LocomotionMode) => void
   flyTo: (pose: CameraPose) => void
   reset: (home: CameraPose) => void
+  /** Stop an orbit flight and leave the camera where it stands. No-op in Walk, which owns the body. */
+  hold: () => void
   setStick: (stick: Stick) => void
   destroy: () => void
 }
@@ -323,6 +325,12 @@ export function attachWalkRig(opts: {
       if (next === mode) return
       if (next === "walk") enterWalk()
       else exitWalk()
+    },
+    hold: () => {
+      if (mode === "walk") return
+      const position = camera.getPosition().clone()
+      const focus = controls.focusPoint.clone()
+      snapOrbit({ x: position.x, y: position.y, z: position.z }, { x: focus.x, y: focus.y, z: focus.z })
     },
     flyTo: (pose) => {
       if (mode !== "walk") {
