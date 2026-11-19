@@ -55,10 +55,12 @@ type MarkersProps = {
    * framing it, or opening the parts card. A click still does those.
    */
   pulseId?: string | null
+  /** Measure owns the click. The cards stay visible and stop taking the pointer and the tab stop. */
+  measuring?: boolean
 }
 
 export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(function SplatMarkers(
-  { stats, onPick, pulseId = null },
+  { stats, onPick, pulseId = null, measuring = false },
   ref,
 ) {
   const { state, select, hover, frame, openCard } = useWorld()
@@ -163,7 +165,13 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
   }
 
   return (
-    <div ref={rootRef} className="pointer-events-none absolute inset-0 overflow-hidden" role="group" aria-label="Objects in the 3D world">
+    <div
+      ref={rootRef}
+      inert={measuring}
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      role="group"
+      aria-label="Objects in the 3D world"
+    >
       <svg ref={svgRef} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden preserveAspectRatio="none">
         {ordered.map((o) => {
           const color = OBJECT_PALETTE[o.colorIndex % OBJECT_PALETTE.length]
@@ -200,7 +208,8 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
             onPointerLeave={() => hover(null)}
             onClick={() => pick(o.id)}
             className={cn(
-              "pointer-events-auto invisible absolute top-0 left-0 grid size-6 cursor-pointer place-items-center will-change-transform",
+              measuring ? "pointer-events-none" : "pointer-events-auto",
+              "invisible absolute top-0 left-0 grid size-6 cursor-pointer place-items-center will-change-transform",
               "motion-transition transition-opacity duration-200",
               emphasized && "z-10",
               dimmed && "opacity-40",
@@ -237,7 +246,8 @@ export const SplatMarkers = React.forwardRef<MarkersHandle, MarkersProps>(functi
             onBlur={() => hover(null)}
             onClick={() => pick(o.id)}
             className={cn(
-              "pointer-events-auto invisible absolute top-0 left-0 will-change-transform",
+              measuring ? "pointer-events-none" : "pointer-events-auto",
+              "invisible absolute top-0 left-0 will-change-transform",
               "motion-transition transition-opacity duration-200",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
               dotOnly

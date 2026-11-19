@@ -57,6 +57,7 @@ export function useAttractTour({
   framedId,
   cardId,
   walking = false,
+  measuring = false,
   stops,
   flyTo,
   goHome,
@@ -69,6 +70,8 @@ export function useAttractTour({
   cardId: string | null
   /** First-person Walk. The tour does not run, and does not resume when Orbit returns. */
   walking?: boolean
+  /** Measure. The tour does not run, and does not resume when Measure turns off. */
+  measuring?: boolean
   stops: readonly string[]
   flyTo: (id: string) => void
   goHome: () => void
@@ -91,9 +94,9 @@ export function useAttractTour({
   onUserStopRef.current = onUserStop
   stopsRef.current = stops
   const stopsKey = stops.join("\0")
-  const allowed = tourAllowed({ ready, framedId, cardId, reducedMotion, present, walking })
-  // A frame or an open card is about to move the camera itself. Walk already owns it.
-  const release = Boolean(framedId || cardId || walking)
+  const allowed = tourAllowed({ ready, framedId, cardId, reducedMotion, present, walking, measuring })
+  // A frame or an open card is about to move the camera itself. Walk and Measure already own it.
+  const release = Boolean(framedId || cardId || walking || measuring)
 
   const publish = React.useCallback((state: TourState) => {
     setView((current) =>
@@ -107,12 +110,15 @@ export function useAttractTour({
     if (!enabled) return
     if (!allowed) {
       const prev = machine.current
-      // Walk is a choice of camera, not a pause. Stay off after Orbit comes back.
-      if (walking) {
+      // Walk and Measure take the camera. Stay off after they turn off.
+      if (walking || measuring) {
         if (prev.phase === "off" && prev.dismissed) return
+        const running = prev.phase !== "off"
         const next = stopTour(prev)
         machine.current = next
-        if (prev.phase !== "off") publish(next)
+        // Measure stays in Orbit, so a flight in progress has to stop or the tape moves under it.
+        if (running && measuring && !walking) holdRef.current()
+        if (running) publish(next)
         return
       }
       if (prev.phase === "off") return
@@ -148,7 +154,7 @@ export function useAttractTour({
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
-  }, [enabled, allowed, release, walking, stopsKey, publish])
+  }, [enabled, allowed, release, walking, measuring, stopsKey, publish])
 
   React.useEffect(() => {
     if (!enabled) return

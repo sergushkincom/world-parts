@@ -26,6 +26,7 @@ export type ShortcutId =
   | "minimap-further"
   | "minimap-home"
   | "reset"
+  | "measure"
   | "highlight"
   | "recolor"
   | "isolate"
@@ -71,6 +72,7 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   { id: "minimap-further", group: "Minimap", action: "Nudge the plan further", hint: "Move further", keys: ["Shift", "↑"] },
   { id: "minimap-home", group: "Minimap", action: "Back under the breadcrumb", hint: "Back", keys: ["Enter"] },
   { id: "reset", group: "View", action: "Reset view", hint: "Reset", keys: ["R"] },
+  { id: "measure", group: "View", action: "Measure on the scan", hint: "Measure", keys: ["M"] },
   { id: "highlight", group: "View", action: "Highlight", hint: "Highlight", keys: ["1"] },
   { id: "recolor", group: "View", action: "Recolor + dim rest", hint: "Recolor", keys: ["2"] },
   { id: "isolate", group: "View", action: "Isolate", hint: "Isolate", keys: ["3"] },

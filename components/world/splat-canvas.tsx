@@ -28,6 +28,8 @@ import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { createGestureTracker, trackGesture, type GestureId } from "@/lib/shortcut-learning"
 import { attachWalkRig, type WalkRig } from "@/components/world/walk-rig"
 import { WalkPad } from "@/components/world/walk-pad"
+import { createSurfacePicker, type SurfacePick } from "@/components/world/splat-pick"
+import { isMeasureTap } from "@/lib/measure"
 
 export type CameraPose = { position: [number, number, number]; target: [number, number, number] }
 
@@ -105,6 +107,9 @@ type Props = {
   locomotion?: LocomotionMode
   /** Room walls from the minimap calibration, with eye height as the vertical lock. */
   bounds: Aabb
+  /** Measure is on: a short press reads a point on the scan. A drag still looks around. */
+  measuring?: boolean
+  onMeasurePick?: (pick: SurfacePick) => void
   /**
    * Called every frame after the camera moved, with a projector for 3D points and where the camera stands and
    * looks on the floor. Write to the DOM here, not to state.
@@ -128,6 +133,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     onFrame,
     locomotion = "orbit",
     bounds,
+    measuring = false,
+    onMeasurePick,
   },
   ref,
 ) {
@@ -159,6 +166,9 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
   const boundsRef = React.useRef(bounds)
   boundsRef.current = bounds
   const rigRef = React.useRef<WalkRig | null>(null)
+  const pickApi = React.useRef<ReturnType<typeof createSurfacePicker> | null>(null)
+  const measurePickRef = React.useRef(onMeasurePick)
+  measurePickRef.current = onMeasurePick
 
   React.useImperativeHandle(ref, () => ({
     focus: (focus) => {
@@ -248,6 +258,13 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     if (dampingRef.current !== undefined) controls.focusDamping = dampingRef.current
     controls.reset(v(homeRef.current.target), v(homeRef.current.position))
     controlsRef.current = controls
+
+    const surface = createSurfacePicker({
+      app,
+      camera,
+      getSplat: () => splatRef.current,
+    })
+    pickApi.current = surface
 
     const rig = attachWalkRig({
       app,
@@ -381,6 +398,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       observer.disconnect()
       rig.destroy()
       rigRef.current = null
+      surface.destroy()
+      pickApi.current = null
       controlsRef.current = null
       splatRef.current = null
       maskRef.current?.destroy()
@@ -429,6 +448,45 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     rigRef.current?.setMode(locomotion)
   }, [locomotion])
 
+  // A short press places a point. The camera keeps the drag, so looking around still works.
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !measuring) return
+    pickApi.current?.prepare()
+    let down: { id: number; x: number; y: number } | null = null
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      down = { id: event.pointerId, x: event.clientX, y: event.clientY }
+    }
+    const onUp = (event: PointerEvent) => {
+      if (!down || event.pointerId !== down.id) return
+      const start = down
+      down = null
+      if (!isMeasureTap(event.clientX - start.x, event.clientY - start.y)) return
+      const rect = canvas.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      const x = event.clientX - rect.left
+      const y = event.clientY - rect.top
+      const api = pickApi.current
+      if (!api) return
+      void api.pick(x, y).then((pick) => {
+        if (pick.status === "stale") return
+        measurePickRef.current?.(pick)
+      })
+    }
+    const onCancel = (event: PointerEvent) => {
+      if (down?.id === event.pointerId) down = null
+    }
+    canvas.addEventListener("pointerdown", onDown)
+    canvas.addEventListener("pointerup", onUp)
+    canvas.addEventListener("pointercancel", onCancel)
+    return () => {
+      canvas.removeEventListener("pointerdown", onDown)
+      canvas.removeEventListener("pointerup", onUp)
+      canvas.removeEventListener("pointercancel", onCancel)
+    }
+  }, [measuring])
+
   const onStick = React.useCallback((stick: Stick) => {
     rigRef.current?.setStick(stick)
   }, [])
@@ -446,15 +504,20 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       <canvas
         ref={canvasRef}
         data-locomotion={locomotion}
+        data-measuring={measuring ? "on" : "off"}
         className={
-          locomotion === "walk"
-            ? "absolute inset-0 size-full touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
-            : "absolute inset-0 size-full cursor-grab touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
+          measuring
+            ? "absolute inset-0 size-full cursor-crosshair touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
+            : locomotion === "walk"
+              ? "absolute inset-0 size-full touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
+              : "absolute inset-0 size-full cursor-grab touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
         }
         aria-label={
-          locomotion === "walk"
-            ? "Live 3D view of the room. Drag to look. When this view is focused, WASD or arrow keys walk at eye height inside the room."
-            : "Live 3D view of the room. Drag to look around, scroll or pinch to zoom."
+          measuring
+            ? "Measuring. Click two points on the scan. Escape clears. Drag still looks around."
+            : locomotion === "walk"
+              ? "Live 3D view of the room. Drag to look. When this view is focused, WASD or arrow keys walk at eye height inside the room."
+              : "Live 3D view of the room. Drag to look around, scroll or pinch to zoom."
         }
         tabIndex={0}
       />

@@ -181,6 +181,7 @@ export function ShortcutsPanel({
                     how={<span className="flex items-center gap-1">Right-drag or {keys("Shift")} + drag</span>}
                   />
                   <PlainRow action="Zoom" how="Scroll" />
+                  <PlainRow action="Place a measure point" how="Click, while Measure is on" />
                   {shortcutsIn("View").map((shortcut) => (
                     <KeyRow key={shortcut.id} shortcut={shortcut} learned={learned.has(shortcut.id)} />
                   ))}
