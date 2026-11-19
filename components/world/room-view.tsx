@@ -144,6 +144,7 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
   useObjectInHash(route)
   const [mode, setMode] = React.useState<ViewMode>("still")
   const [locomotion, setLocomotion] = React.useState<LocomotionMode>("orbit")
+  const [measuring, setMeasuring] = React.useState(false)
   const splatRef = React.useRef<SplatViewHandle>(null)
   const minimapRef = React.useRef<MinimapHandle>(null)
   const [liveReady, setLiveReady] = React.useState(false)
@@ -177,11 +178,35 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
     return () => window.removeEventListener("keydown", onKey)
   }, [mode, frame, noteKey])
 
-  // A new room starts a new walk.
+  // A new room starts a new walk. The tape is this room's scan, so it goes too.
   React.useEffect(() => {
     setViewpoint(null)
     setVisited([])
+    setMeasuring(false)
   }, [route.room])
+
+  React.useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest?.("input, textarea, select, [contenteditable='true']")) return
+      if (document.querySelector("[role='menu'], [role='alertdialog'], [role='dialog']")) return
+      if (event.key === "m" || event.key === "M") {
+        if (event.defaultPrevented || mode !== "live") return
+        event.preventDefault()
+        setMeasuring((on) => !on)
+        noteKey("measure")
+        return
+      }
+      if (event.key !== "Escape" || !measuring) return
+      // The tape clears first. The next Esc still closes the card or leaves the room.
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setMeasuring(false)
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [mode, measuring, noteKey])
 
   // Find takes over the camera; the walk starts again from wherever Find left it.
   React.useEffect(() => setViewpoint(null), [state.framedId, mode])
@@ -208,10 +233,16 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
           roomId={route.room}
           q={route.q}
           mode={mode}
-          onMode={setMode}
+          onMode={(next) => {
+            setMode(next)
+            if (next !== "live") setMeasuring(false)
+          }}
           locomotion={locomotion}
           onLocomotion={setLocomotion}
           walkDisabledReason={mode !== "live" ? "Switch to Live 3D to walk" : null}
+          measuring={measuring}
+          onMeasuring={setMeasuring}
+          measureDisabledReason={mode !== "live" ? "Switch to Live 3D to measure" : null}
           onReset={() => (mode === "live" ? splatRef.current?.reset() : frame(null))}
           quality={quality}
           onQuality={setQuality}
@@ -233,12 +264,16 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
             ref={splatRef}
             attract
             pixelRatio={pixelRatioFor(quality)}
-            onFallback={() => setMode("still")}
+            onFallback={() => {
+              setMode("still")
+              setMeasuring(false)
+            }}
             onCamera={(view) => minimapRef.current?.setCamera(view)}
             onReadyChange={setLiveReady}
             onFirstDrag={dismissOrbitHint}
             onAttractChange={setTouring}
             locomotion={mode === "live" ? locomotion : "orbit"}
+            measuring={mode === "live" && measuring}
           />
         ) : (
           <Scene />

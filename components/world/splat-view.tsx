@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button"
 import { useAttractTour } from "@/hooks/use-attract-tour"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
+import { MeasureOverlay, type MeasureOverlayHandle } from "@/components/world/measure-overlay"
+import { applyMeasureClick, type MeasureIssue, type MeasurePoint } from "@/lib/measure"
+import type { SurfacePick } from "@/components/world/splat-pick"
 
 // WebGL can't run on the server: load the engine only in the browser, and only when Live 3D is on.
 const SplatCanvas = dynamic(() => import("@/components/world/splat-canvas").then((m) => m.SplatCanvas), {
@@ -91,6 +94,8 @@ type SplatViewProps = {
   onAttractChange?: (active: boolean) => void
   /** Orbit, or walk at eye height inside the room. The view pill owns the choice. */
   locomotion?: LocomotionMode
+  /** Two-point distance. Callouts and the idle tour stand down while this is on. */
+  measuring?: boolean
 }
 
 export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
@@ -105,6 +110,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     attract = false,
     onAttractChange,
     locomotion = "orbit",
+    measuring = false,
   },
   handle,
 ) {
@@ -114,8 +120,15 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     reset: () => ref.current?.reset(),
   }))
   const markersRef = React.useRef<MarkersHandle>(null)
+  const measureRef = React.useRef<MeasureOverlayHandle>(null)
+  const [measurePoints, setMeasurePoints] = React.useState<MeasurePoint[]>([])
+  const measurePointsRef = React.useRef(measurePoints)
+  measurePointsRef.current = measurePoints
+  const [measureIssue, setMeasureIssue] = React.useState<MeasureIssue>("none")
+  const { state, hover } = useWorld()
+  const hoverRef = React.useRef(hover)
+  hoverRef.current = hover
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
-  const { state } = useWorld()
   const world = worldOf(state.roomId)
   const bounds = roomAabb(PLAN_CALIBRATION[state.roomId]?.world ?? [[-4, -12], [4, 0]], world.home.position[1])
   // Spike: `?splat=lod` streams the level-of-detail version where a room has one; everything else is unchanged.
@@ -196,6 +209,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     framedId: state.framedId,
     cardId: state.cardId,
     walking: locomotion === "walk",
+    measuring,
     stops,
     flyTo: (id) => {
       const anchor = stats.get(id)?.anchor
@@ -215,6 +229,33 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     attractChangeRef.current?.(tour.phase !== "off")
   }, [tour.phase])
   React.useEffect(() => () => attractChangeRef.current?.(false), [])
+
+  // Turning Measure off drops the tape. Turning it on clears a stuck hover so the tint lets go.
+  React.useEffect(() => {
+    if (measuring) {
+      hoverRef.current(null)
+      return
+    }
+    setMeasurePoints([])
+    setMeasureIssue("none")
+  }, [measuring])
+
+  const onMeasurePick = React.useCallback((pick: SurfacePick) => {
+    if (pick.status === "stale") return
+    if (pick.status === "loading") {
+      setMeasureIssue("loading")
+      return
+    }
+    if (pick.status === "miss") {
+      if (measurePointsRef.current.length < 2) setMeasureIssue("miss")
+      return
+    }
+    if (process.env.NODE_ENV === "development") {
+      ;(window as unknown as { __measureSource?: string }).__measureSource = pick.source
+    }
+    setMeasureIssue("none")
+    setMeasurePoints((current) => applyMeasureClick(current, pick.point))
+  }, [])
 
   React.useEffect(() => {
     if (status.kind !== "ready") return
@@ -257,15 +298,22 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         focusDamping={focusDamping}
         locomotion={locomotion}
         bounds={bounds}
+        measuring={measuring}
+        onMeasurePick={onMeasurePick}
         onStatus={setStatus}
         onFirstInteraction={onFirstDrag}
         onFrame={(project, view) => {
           markersRef.current?.place(project)
+          measureRef.current?.place(project)
           onCamera?.(view)
         }}
       />
 
-      {status.kind === "ready" && <SplatMarkers ref={markersRef} stats={stats} onPick={onPick} pulseId={tourId} />}
+      {status.kind === "ready" && (
+        <SplatMarkers ref={markersRef} stats={stats} onPick={onPick} pulseId={tourId} measuring={measuring} />
+      )}
+
+      {measuring && <MeasureOverlay ref={measureRef} points={measurePoints} issue={measureIssue} />}
 
       {status.kind === "loading" && (
         <div role="status" className="absolute inset-0 grid place-items-center">

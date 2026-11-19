@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { EllipsisIcon, InfoIcon, KeyboardIcon, LinkIcon, RotateCcwIcon } from "lucide-react"
+import { EllipsisIcon, InfoIcon, KeyboardIcon, LinkIcon, RotateCcwIcon, RulerIcon } from "lucide-react"
 import { copyText } from "@/lib/clipboard"
 import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { useMediaQuery } from "@/hooks/use-media-query"
@@ -62,6 +62,9 @@ export function ViewPill({
   locomotion,
   onLocomotion,
   walkDisabledReason,
+  measuring,
+  onMeasuring,
+  measureDisabledReason,
   onReset,
   quality,
   onQuality,
@@ -74,6 +77,10 @@ export function ViewPill({
   onLocomotion: (locomotion: LocomotionMode) => void
   /** Set when Walk cannot run. The text is the accessible explanation. */
   walkDisabledReason: string | null
+  measuring: boolean
+  onMeasuring: (measuring: boolean) => void
+  /** Set when Measure cannot run. The text is the accessible explanation. */
+  measureDisabledReason: string | null
   onReset: () => void
   quality: SplatQuality
   onQuality: (quality: SplatQuality) => void
@@ -168,6 +175,44 @@ export function ViewPill({
             </Tip>
           )}
         </div>
+
+        <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-white/20" />
+
+        {measureDisabledReason ? (
+          <Tip label={measureDisabledReason}>
+            <span
+              tabIndex={0}
+              role="button"
+              aria-disabled="true"
+              aria-pressed={false}
+              aria-label={`Measure. ${measureDisabledReason}`}
+              className={cn(seg, "cursor-not-allowed gap-1 opacity-40")}
+              onClick={(event) => event.preventDefault()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") event.preventDefault()
+              }}
+            >
+              <RulerIcon aria-hidden className="size-4" />
+              <span className="max-panel:sr-only">Measure</span>
+            </span>
+          </Tip>
+        ) : (
+          <Tip label={measuring ? "Clear · Esc" : "Distance on the scan · M"}>
+            <button
+              type="button"
+              className={cn(seg, "gap-1")}
+              aria-pressed={measuring}
+              aria-keyshortcuts="M"
+              onClick={(event) => {
+                if (activatedByPointer(event)) notePointer("measure")
+                onMeasuring(!measuring)
+              }}
+            >
+              <RulerIcon aria-hidden className="size-4" />
+              <span className="max-panel:sr-only">Measure</span>
+            </button>
+          </Tip>
+        )}
 
         <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-white/20" />
 

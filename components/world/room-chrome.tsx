@@ -26,6 +26,9 @@ export function RoomChrome({
   locomotion,
   onLocomotion,
   walkDisabledReason,
+  measuring,
+  onMeasuring,
+  measureDisabledReason,
   onReset,
   quality,
   onQuality,
@@ -49,6 +52,10 @@ export function RoomChrome({
   onLocomotion: (locomotion: LocomotionMode) => void
   /** Why Walk is greyed out, or null when the live world can be walked. */
   walkDisabledReason: string | null
+  measuring: boolean
+  onMeasuring: (measuring: boolean) => void
+  /** Why Measure is greyed out, or null when Live 3D can take two points. */
+  measureDisabledReason: string | null
   onReset: () => void
   quality: SplatQuality
   onQuality: (quality: SplatQuality) => void
@@ -70,7 +77,7 @@ export function RoomChrome({
   const [searchOpen, setSearchOpen] = React.useState(false)
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false)
   const { touch, tipsOff, hint, setGate } = useShortcutLearning()
-  const orbitVisible = showOrbitHint && !showTourHint && !touch && !tipsOff
+  const orbitVisible = showOrbitHint && !showTourHint && !measuring && !touch && !tipsOff
 
   React.useEffect(() => {
     setGate({ paused: orbitVisible || showTourHint || shortcutsOpen || hintBlocked, coachGestures: live })
@@ -161,6 +168,9 @@ export function RoomChrome({
         locomotion={locomotion}
         onLocomotion={onLocomotion}
         walkDisabledReason={walkDisabledReason}
+        measuring={measuring}
+        onMeasuring={onMeasuring}
+        measureDisabledReason={measureDisabledReason}
         onReset={onReset}
         quality={quality}
         onQuality={onQuality}

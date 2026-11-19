@@ -63,6 +63,8 @@ export type TourGate = {
   present: boolean
   /** First-person Walk owns the camera. The tour stays off for the whole time it is on. */
   walking: boolean
+  /** Measure owns the click. The tour stays off, the same way Walk does, so the camera holds still. */
+  measuring: boolean
 }
 
 const IDLE: TourState = {
@@ -89,9 +91,9 @@ export function tourStops(roomId: string, candidates: readonly string[]): string
   return WORKSHOP_TOUR_ORDER.filter((id) => have.has(id))
 }
 
-/** Ready, nothing framed or open, Orbit (not Walk), and motion is allowed — or a recording forces the motion check. */
+/** Ready, nothing framed or open, Orbit (not Walk or Measure), and motion is allowed — or a recording forces the motion check. */
 export function tourAllowed(gate: TourGate): boolean {
-  if (!gate.ready || gate.framedId || gate.cardId || gate.walking) return false
+  if (!gate.ready || gate.framedId || gate.cardId || gate.walking || gate.measuring) return false
   if (gate.reducedMotion && !gate.present) return false
   return true
 }
