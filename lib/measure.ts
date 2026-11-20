@@ -42,8 +42,67 @@ export function midpoint(a: MeasurePoint, b: MeasurePoint): MeasurePoint {
  */
 export function formatMetres(metres: number) {
   if (!Number.isFinite(metres) || metres < 0) return "— m"
-  const digits = metres >= 10 ? 1 : metres >= 1 ? 2 : 3
-  return `${metres.toFixed(digits)} m`
+  return `${metres.toFixed(metrePlaces(metres))} m`
+}
+
+/** Places `formatMetres` would use for a finished reading of this length. */
+export function metrePlaces(metres: number) {
+  if (!Number.isFinite(metres) || metres < 1) return 3
+  if (metres < 10) return 2
+  return 1
+}
+
+/**
+ * A counting label, rounded like the finished reading. Crossing 1 m does not grow an extra digit,
+ * so the chip stays the same width while the number climbs, and the last frame matches `formatMetres`.
+ */
+export function formatCountedMetres(shown: number, finalMetres: number) {
+  if (!Number.isFinite(finalMetres) || finalMetres < 0) return formatMetres(shown)
+  if (!Number.isFinite(shown) || shown < 0) return formatMetres(shown)
+  return `${shown.toFixed(metrePlaces(finalMetres))} m`
+}
+
+/** How long the tape takes to reach the second point. Inside the 500–700 ms the draw is meant to take. */
+export const MEASURE_DRAW_MS = 600
+
+/**
+ * Cubic ease-out. The tape leaves the first point quickly and settles on the second.
+ * 0 and 1 stay put; anything past either end clamps, so a late frame does not overshoot.
+ */
+export function easeOut(t: number) {
+  if (!Number.isFinite(t)) return 1
+  const x = t < 0 ? 0 : t > 1 ? 1 : t
+  return 1 - (1 - x) ** 3
+}
+
+/**
+ * How far the tape has reached, from 0 at the second click to 1 when it has arrived.
+ * Reduced motion is already there: the finished tape, with no frames in between.
+ */
+export function tapeProgress(elapsedMs: number, reducedMotion: boolean, durationMs = MEASURE_DRAW_MS) {
+  if (reducedMotion) return 1
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 1
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return 0
+  if (elapsedMs >= durationMs) return 1
+  return easeOut(elapsedMs / durationMs)
+}
+
+/** Metres on the label while the tape is at `progress`. At 1 it is the real distance, not `metres * 1`. */
+export function shownMetres(metres: number, progress: number) {
+  if (!Number.isFinite(metres)) return metres
+  if (!Number.isFinite(progress) || progress >= 1) return metres
+  if (progress <= 0) return 0
+  return metres * progress
+}
+
+/** A point part-way from `a` to `b`. `t` clamps to the segment, so the tape cannot grow past the second point. */
+export function pointAlong(a: MeasurePoint, b: MeasurePoint, t: number): MeasurePoint {
+  const x = t < 0 ? 0 : t > 1 ? 1 : t
+  return {
+    x: a.x + (b.x - a.x) * x,
+    y: a.y + (b.y - a.y) * x,
+    z: a.z + (b.z - a.z) * x,
+  }
 }
 
 /** A third click starts again. A finished tape stays until that new point exists. */
@@ -54,10 +113,16 @@ export function applyMeasureClick(points: readonly MeasurePoint[], hit: MeasureP
 
 export type MeasureIssue = "none" | "miss" | "loading"
 
-/** The line the status chip reads. A finished tape keeps its distance. */
-export function measureStatus(points: readonly MeasurePoint[], issue: MeasureIssue) {
+/**
+ * The line the status chip reads. A finished tape keeps its distance.
+ * `shown` is the metres on screen while the tape is still drawing; omit it for the finished
+ * reading, which is also what a screen reader hears the moment the second point lands.
+ */
+export function measureStatus(points: readonly MeasurePoint[], issue: MeasureIssue, shown?: number) {
   if (points.length >= 2) {
-    return `≈ ${formatMetres(distanceMetres(points[0], points[1]))} · approximate`
+    const finalMetres = distanceMetres(points[0], points[1])
+    const text = shown == null ? formatMetres(finalMetres) : formatCountedMetres(shown, finalMetres)
+    return `≈ ${text} · approximate`
   }
   if (issue === "loading") return "The scan is still loading."
   if (issue === "miss") {

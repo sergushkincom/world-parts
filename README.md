@@ -71,7 +71,7 @@ The number is approximate. These worlds are generated from a photo, not surveyed
 
 The point is the splat under the cursor. PlayCanvas depth-picks the gaussian the renderer shows at that pixel, from a buffer capped at 512 pixels on the long edge so the extra draw stays a click. Where that read finds no surface, the click uses the nearest splat centre within a few pixels of the cursor. Neither is a mesh, so an edge or a thin part can sit a few centimetres off. While Measure is on, callouts do not take the click, selection stays as it was, and the idle tour stays off so the camera holds still. A drag still looks around, and Walk still walks.
 
-The tape is drawn in place, with no motion of its own, so reduced motion has nothing to disable.
+When the second point lands, the tape extends from the first and the metres label at the midpoint counts up to the distance (~600 ms, ease-out). The status chip counts with it; a screen reader hears the finished distance at once. Reduced motion shows the finished tape at once.
 
 ## Design decisions
 

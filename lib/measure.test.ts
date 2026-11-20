@@ -2,16 +2,22 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   MAX_MEASURE_UNITS,
+  MEASURE_DRAW_MS,
   SPLAT_METRES_PER_UNIT,
   applyMeasureClick,
   buildCenterGrid,
   distanceMetres,
+  easeOut,
+  formatCountedMetres,
   formatMetres,
   isMeasureTap,
   measureStatus,
   midpoint,
   pixelRadiusFactor,
+  pointAlong,
   raycastCenters,
+  shownMetres,
+  tapeProgress,
   type MeasurePoint,
 } from "./measure.ts"
 
@@ -34,6 +40,46 @@ describe("distance", () => {
     assert.equal(formatMetres(1.234), "1.23 m")
     assert.equal(formatMetres(12.36), "12.4 m")
     assert.equal(formatMetres(Number.NaN), "— m")
+  })
+
+  it("counts up in the finished reading's precision, and lands on that reading", () => {
+    assert.equal(formatCountedMetres(0, 3.59), "0.00 m")
+    assert.equal(formatCountedMetres(1.2, 3.59), "1.20 m")
+    assert.equal(formatCountedMetres(3.59, 3.59), formatMetres(3.59))
+    assert.equal(formatCountedMetres(0, 0.025), "0.000 m")
+    assert.equal(formatCountedMetres(12.36, 12.36), formatMetres(12.36))
+  })
+})
+
+describe("the tape drawing out", () => {
+  it("takes a short ease-out, and reduced motion is already finished", () => {
+    assert.equal(MEASURE_DRAW_MS >= 500 && MEASURE_DRAW_MS <= 700, true)
+    assert.equal(easeOut(0), 0)
+    assert.equal(easeOut(1), 1)
+    assert.equal(easeOut(0.5), 0.875)
+    assert.ok(easeOut(0.5) > 0.5)
+    assert.equal(easeOut(-1), 0)
+    assert.equal(easeOut(2), 1)
+    assert.equal(tapeProgress(0, false), 0)
+    assert.equal(tapeProgress(MEASURE_DRAW_MS / 2, false), easeOut(0.5))
+    assert.equal(tapeProgress(MEASURE_DRAW_MS, false), 1)
+    assert.equal(tapeProgress(MEASURE_DRAW_MS + 50, false), 1)
+    assert.equal(tapeProgress(0, true), 1)
+    assert.equal(tapeProgress(MEASURE_DRAW_MS / 2, true), 1)
+  })
+
+  it("grows the line from the first point and the label with it", () => {
+    const a: MeasurePoint = { x: 0, y: 0, z: 0 }
+    const b: MeasurePoint = { x: 4, y: 0, z: 0 }
+    assert.deepEqual(pointAlong(a, b, 0), a)
+    assert.deepEqual(pointAlong(a, b, 0.25), { x: 1, y: 0, z: 0 })
+    assert.deepEqual(pointAlong(a, b, 1), b)
+    assert.deepEqual(pointAlong(a, b, 2), b)
+    assert.equal(shownMetres(4, 0), 0)
+    assert.equal(shownMetres(4, 0.25), 1)
+    assert.equal(shownMetres(4, 1), 4)
+    assert.equal(measureStatus([a, b], "none", 1), "≈ 1.00 m · approximate")
+    assert.equal(measureStatus([a, b], "none"), "≈ 4.00 m · approximate")
   })
 })
 
