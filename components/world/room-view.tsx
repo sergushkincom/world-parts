@@ -274,6 +274,7 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
             onAttractChange={setTouring}
             locomotion={mode === "live" ? locomotion : "orbit"}
             measuring={mode === "live" && measuring}
+            partNo={route.part ?? null}
           />
         ) : (
           <Scene />

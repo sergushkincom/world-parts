@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import { TriangleAlertIcon } from "lucide-react"
 import { OBJECT_PALETTE, PLAN_CALIBRATION, worldOf, type CameraPose, type WorldObject } from "@/lib/data"
 import { tourStops } from "@/lib/tour"
+import { floorY, guideSpot } from "@/lib/guide"
 import { roomAabb, type LocomotionMode } from "@/lib/walk"
 import { drawIdMask, measureObjects, type MaskObject, type SplatStats } from "@/lib/splat-mask"
 import type { CameraView } from "@/lib/minimap"
@@ -14,6 +15,7 @@ import { useAttractTour } from "@/hooks/use-attract-tour"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
 import { MeasureOverlay, type MeasureOverlayHandle } from "@/components/world/measure-overlay"
+import { FloorPath, type FloorPathHandle } from "@/components/world/floor-path"
 import { applyMeasureClick, type MeasureIssue, type MeasurePoint } from "@/lib/measure"
 import type { SurfacePick } from "@/components/world/splat-pick"
 
@@ -96,6 +98,8 @@ type SplatViewProps = {
   locomotion?: LocomotionMode
   /** Two-point distance. Callouts and the idle tour stand down while this is on. */
   measuring?: boolean
+  /** The part open in the room. In Walk, the floor path runs to where that part is kept. */
+  partNo?: string | null
 }
 
 export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
@@ -111,6 +115,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     onAttractChange,
     locomotion = "orbit",
     measuring = false,
+    partNo = null,
   },
   handle,
 ) {
@@ -121,6 +126,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   }))
   const markersRef = React.useRef<MarkersHandle>(null)
   const measureRef = React.useRef<MeasureOverlayHandle>(null)
+  const pathRef = React.useRef<FloorPathHandle>(null)
   const [measurePoints, setMeasurePoints] = React.useState<MeasurePoint[]>([])
   const measurePointsRef = React.useRef(measurePoints)
   measurePointsRef.current = measurePoints
@@ -285,6 +291,21 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     ;(window as unknown as { __splat?: SplatCanvasHandle | null }).__splat = ref.current
   }, [status.kind])
 
+  // Walk only. A part points at its cabinet; a framed object is the place when no part is open.
+  const guide =
+    locomotion === "walk"
+      ? guideSpot({
+          roomId: state.roomId,
+          partNo,
+          framedId: state.framedId,
+          objects: state.objects,
+          at: (id) => {
+            const anchor = stats.get(id)?.anchor ?? world.poses[id]?.target
+            return anchor ? { x: anchor[0], z: anchor[2] } : null
+          },
+        })
+      : null
+
   return (
     <div className="absolute inset-0 overflow-hidden bg-scene" data-tour={tour.phase}>
       <SplatCanvas
@@ -305,9 +326,14 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         onFrame={(project, view) => {
           markersRef.current?.place(project)
           measureRef.current?.place(project)
+          pathRef.current?.place(project, view)
           onCamera?.(view)
         }}
       />
+
+      {guide && (
+        <FloorPath key={guide.key} ref={pathRef} target={guide} floorY={floorY(world.home.position[1])} />
+      )}
 
       {status.kind === "ready" && (
         <SplatMarkers ref={markersRef} stats={stats} onPick={onPick} pulseId={tourId} measuring={measuring} />
