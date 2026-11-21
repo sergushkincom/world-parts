@@ -38,8 +38,12 @@ export type SplatStatus =
   | { kind: "ready" }
   | { kind: "error"; message: string }
 
-/** Where a 3D point lands on the canvas, in CSS pixels. `visible` is false behind the camera or off screen. */
-export type ScreenPoint = { x: number; y: number; visible: boolean }
+/**
+ * Where a 3D point lands on the canvas, in CSS pixels.
+ * `inFront` is false only behind the camera. `visible` is on screen. A point in front but off
+ * the screen still has coordinates, so a floor path can run in from the edge.
+ */
+export type ScreenPoint = { x: number; y: number; visible: boolean; inFront: boolean }
 export type Project = (p: [number, number, number]) => ScreenPoint
 
 /** Light up the splats of one object: inside its still-frame mask and within its depth band. The rest dims. */
@@ -349,10 +353,10 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     const project: Project = (p) => {
       world.set(p[0], p[1], p[2])
       toPoint.sub2(world, camera.getPosition())
-      if (toPoint.dot(camera.forward) <= 0.05) return { x: 0, y: 0, visible: false }
+      if (toPoint.dot(camera.forward) <= 0.05) return { x: 0, y: 0, visible: false, inFront: false }
       camera.camera!.worldToScreen(world, screen)
       const visible = screen.x >= -40 && screen.y >= -40 && screen.x <= canvas.clientWidth + 40 && screen.y <= canvas.clientHeight + 40
-      return { x: screen.x, y: screen.y, visible }
+      return { x: screen.x, y: screen.y, visible, inFront: true }
     }
     const view: CameraView = { x: 0, z: 0, fx: 0, fz: -1, hfov: 1 }
     const onUpdate = () => {
