@@ -40,6 +40,8 @@ export function RoomChrome({
   onViewpoint,
   find,
   onNotify,
+  copyDisabledReason,
+  onCopyView,
   hintBlocked,
   onResetOrbit,
   showTourHint,
@@ -67,6 +69,10 @@ export function RoomChrome({
   onViewpoint: (index: number) => void
   find: { name: string; at: Point } | null
   onNotify: (message: string) => void
+  /** Why Copy view is greyed out, or null when Live 3D can share the camera. */
+  copyDisabledReason: string | null
+  /** Copies a link to the camera and the selected object. Resolves false when the copy fails. */
+  onCopyView: () => Promise<boolean>
   /** Link-copied toast is using the chip slot. */
   hintBlocked: boolean
   onResetOrbit: () => void
@@ -175,6 +181,8 @@ export function RoomChrome({
         quality={quality}
         onQuality={onQuality}
         onNotify={onNotify}
+        copyDisabledReason={copyDisabledReason}
+        onCopyView={onCopyView}
         onOpenShortcuts={() => setShortcutsOpen(true)}
       />
       <ShortcutsPanel open={shortcutsOpen} onOpenChange={setShortcutsOpen} onResetOrbit={onResetOrbit} />

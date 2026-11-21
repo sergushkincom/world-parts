@@ -6,7 +6,9 @@ import type { LocomotionMode } from "@/lib/walk"
 import { planMapper } from "@/lib/minimap"
 import { readJSON, writeJSON } from "@/lib/storage"
 import { isSplatQuality, pixelRatioFor, type SplatQuality } from "@/lib/splat-quality"
-import { navigate } from "@/hooks/use-hash-route"
+import { formatRoute, navigate } from "@/hooks/use-hash-route"
+import { copyText } from "@/lib/clipboard"
+import { formatCamera, parseCamera } from "@/lib/view-link"
 import { ShortcutLearningProvider, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { useWorldShortcuts } from "@/hooks/use-world-shortcuts"
 import { DRAWABLE, useWorld } from "@/components/world/world-provider"
@@ -19,7 +21,7 @@ import { SplatView, type SplatViewHandle } from "@/components/world/splat-view"
 
 type ViewMode = "still" | "live"
 
-type RoomRoute = { room: RoomId; object: string | null; part?: string | null; q: string }
+type RoomRoute = { room: RoomId; object: string | null; part?: string | null; q: string; cam?: string | null }
 
 /** The object's name in the URL: its concept when that is unique in the room ("pump"), else its id ("obj-cnc-03"). */
 export function objectKey(o: WorldObject, roomObjects: WorldObject[]) {
@@ -62,8 +64,14 @@ function useObjectInHash(route: RoomRoute) {
     const open = state.objects.find((o) => o.id === state.cardId)
     const key = open ? objectKey(open, state.objects) : null
     appliedRef.current = key
-    const { room, q, object, part } = routeRef.current
-    navigate({ level: "room", room, object: key, part: key === object ? part : null, q }, { replace: true })
+    const { room, q, object, part, cam } = routeRef.current
+    // The copied camera belongs to this object. A different card is a different view.
+    const sameObject =
+      open != null && object != null && (open.id === object || open.concept === object || key === object)
+    navigate(
+      { level: "room", room, object: key, part: key === object ? part : null, q, cam: sameObject ? cam : null },
+      { replace: true },
+    )
   }, [state.hydrated, state.cardId, state.objects])
 }
 
@@ -142,7 +150,12 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
   useWorldShortcuts({ onEscapeRoot: () => navigate({ level: "plant", q: route.q }) })
   const { noteKey } = useShortcutLearning()
   useObjectInHash(route)
-  const [mode, setMode] = React.useState<ViewMode>("still")
+  const sharedPose = React.useMemo(() => parseCamera(route.cam), [route.cam])
+  const [mode, setMode] = React.useState<ViewMode>(sharedPose ? "live" : "still")
+  // A pasted view opens in Live 3D. The still frame has no camera to restore.
+  React.useEffect(() => {
+    if (sharedPose) setMode("live")
+  }, [sharedPose])
   const [locomotion, setLocomotion] = React.useState<LocomotionMode>("orbit")
   const [measuring, setMeasuring] = React.useState(false)
   const splatRef = React.useRef<SplatViewHandle>(null)
@@ -161,6 +174,36 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
     window.clearTimeout(toastTimer.current)
     toastTimer.current = window.setTimeout(() => setToast(null), 2200)
   }, [])
+
+  const copyView = React.useCallback(async () => {
+    const pose = splatRef.current?.getPose()
+    if (!pose) {
+      notify("Couldn't copy the view")
+      return false
+    }
+    const id = state.cardId ?? state.framedId ?? (state.selection.length === 1 ? state.selection[0] : null)
+    const object = id ? state.objects.find((o) => o.id === id) : undefined
+    const key = object ? objectKey(object, state.objects) : null
+    const same =
+      object != null &&
+      route.object != null &&
+      (object.id === route.object || object.concept === route.object || key === route.object)
+    const next = {
+      level: "room" as const,
+      room: route.room,
+      object: key,
+      part: same ? (route.part ?? null) : null,
+      q: route.q,
+      cam: formatCamera(pose),
+    }
+    const url = `${window.location.origin}${window.location.pathname}${formatRoute(next)}`
+    if (!(await copyText(url))) {
+      notify("Couldn't copy link")
+      return false
+    }
+    navigate(next, { replace: true })
+    return true
+  }, [notify, route.object, route.part, route.q, route.room, state.cardId, state.framedId, state.objects, state.selection])
 
   React.useEffect(() => {
     if (mode !== "still") return
@@ -254,6 +297,10 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
           onViewpoint={walkTo}
           find={find}
           onNotify={notify}
+          copyDisabledReason={
+            mode !== "live" ? "Switch to Live 3D to copy this view" : !liveReady ? "The 3D world is still loading" : null
+          }
+          onCopyView={copyView}
           hintBlocked={toast !== null}
           onResetOrbit={clearOrbitHint}
           showTourHint={mode === "live" && touring}
@@ -275,6 +322,8 @@ function RoomViewBody({ route }: { route: RoomRoute }) {
             locomotion={mode === "live" ? locomotion : "orbit"}
             measuring={mode === "live" && measuring}
             partNo={route.part ?? null}
+            sharedPose={sharedPose}
+            focusDamping={sharedPose ? 0.9924 : undefined}
           />
         ) : (
           <Scene />

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { EllipsisIcon, InfoIcon, KeyboardIcon, LinkIcon, RotateCcwIcon, RulerIcon } from "lucide-react"
+import { CheckIcon, EllipsisIcon, InfoIcon, KeyboardIcon, LinkIcon, RotateCcwIcon, RulerIcon } from "lucide-react"
 import { copyText } from "@/lib/clipboard"
 import { activatedByPointer, useShortcutLearning } from "@/hooks/use-shortcut-learning"
 import { useMediaQuery } from "@/hooks/use-media-query"
@@ -66,6 +66,8 @@ export function ViewPill({
   onMeasuring,
   measureDisabledReason,
   onReset,
+  copyDisabledReason,
+  onCopyView,
   quality,
   onQuality,
   onNotify,
@@ -82,12 +84,18 @@ export function ViewPill({
   /** Set when Measure cannot run. The text is the accessible explanation. */
   measureDisabledReason: string | null
   onReset: () => void
+  /** Why Copy view is greyed out, or null when the live camera can be shared. */
+  copyDisabledReason: string | null
+  /** Copies the view link. Resolves false when the clipboard refuses. */
+  onCopyView: () => Promise<boolean>
   quality: SplatQuality
   onQuality: (quality: SplatQuality) => void
   onNotify: (message: string) => void
   onOpenShortcuts: () => void
 }) {
   const [about, setAbout] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
+  const copiedTimer = React.useRef(0)
   const { notePointer } = useShortcutLearning()
   const touchMove = useMediaQuery("(pointer: coarse)")
   const orbitHint = "Drag to look · scroll to zoom"
@@ -100,6 +108,19 @@ export function ViewPill({
   const shareRoom = async () => {
     const ok = await copyText(window.location.href)
     onNotify(ok ? "Link copied" : "Couldn't copy link")
+  }
+
+  React.useEffect(() => () => window.clearTimeout(copiedTimer.current), [])
+
+  const copyView = async () => {
+    // Show the confirmation as the click lands. The clipboard can take a moment.
+    setCopied(true)
+    window.clearTimeout(copiedTimer.current)
+    copiedTimer.current = window.setTimeout(() => setCopied(false), 2200)
+    const ok = await onCopyView()
+    if (ok) return
+    window.clearTimeout(copiedTimer.current)
+    setCopied(false)
   }
 
   return (
@@ -213,6 +234,48 @@ export function ViewPill({
             </button>
           </Tip>
         )}
+
+        <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-white/20" />
+
+        {copyDisabledReason ? (
+          <Tip label={copyDisabledReason}>
+            <span
+              tabIndex={0}
+              role="button"
+              aria-disabled="true"
+              aria-label={`Copy view link. ${copyDisabledReason}`}
+              className={cn(seg, "cursor-not-allowed gap-1 opacity-40")}
+              onClick={(event) => event.preventDefault()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") event.preventDefault()
+              }}
+            >
+              <LinkIcon aria-hidden className="size-4" />
+              <span className="sr-only">Copy view</span>
+            </span>
+          </Tip>
+        ) : (
+          <Tip label="Copy view link">
+            <button
+              type="button"
+              className={cn(seg, "gap-1", copied && "bg-white/15 text-scene-ink")}
+              data-copy-view
+              data-copied={copied ? "true" : "false"}
+              aria-label={copied ? "View link copied" : "Copy view link"}
+              onClick={() => void copyView()}
+            >
+              {copied ? (
+                <CheckIcon aria-hidden className="copy-pop size-4" />
+              ) : (
+                <LinkIcon aria-hidden className="size-4" />
+              )}
+              <span className={copied ? "copy-pop" : "sr-only"}>{copied ? "Copied" : "Copy view"}</span>
+            </button>
+          </Tip>
+        )}
+        <span className="sr-only" aria-live="polite">
+          {copied ? "Copied" : ""}
+        </span>
 
         <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-white/20" />
 

@@ -4,6 +4,7 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import { TriangleAlertIcon } from "lucide-react"
 import { OBJECT_PALETTE, PLAN_CALIBRATION, worldOf, type CameraPose, type WorldObject } from "@/lib/data"
+import { formatCamera } from "@/lib/view-link"
 import { tourStops } from "@/lib/tour"
 import { floorY, guideSpot } from "@/lib/guide"
 import { roomAabb, type LocomotionMode } from "@/lib/walk"
@@ -72,7 +73,12 @@ function readLodFlag() {
   }
 }
 
-export type SplatViewHandle = { flyTo: (pose: CameraPose) => void; reset: () => void }
+export type SplatViewHandle = {
+  flyTo: (pose: CameraPose) => void
+  reset: () => void
+  /** Where the camera stands and where it looks, or null before the world is up. */
+  getPose: () => CameraPose | null
+}
 
 type SplatViewProps = {
   onFallback: () => void
@@ -100,6 +106,11 @@ type SplatViewProps = {
   measuring?: boolean
   /** The part open in the room. In Walk, the floor path runs to where that part is kept. */
   partNo?: string | null
+  /**
+   * A view from a copied link. While it is set, the camera eases here instead of to the
+   * framed object's own pose, and the idle tour stays off.
+   */
+  sharedPose?: CameraPose | null
 }
 
 export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(function SplatView(
@@ -116,6 +127,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     locomotion = "orbit",
     measuring = false,
     partNo = null,
+    sharedPose = null,
   },
   handle,
 ) {
@@ -123,6 +135,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   React.useImperativeHandle(handle, () => ({
     flyTo: (pose) => ref.current?.flyTo(pose),
     reset: () => ref.current?.reset(),
+    getPose: () => ref.current?.getPose() ?? null,
   }))
   const markersRef = React.useRef<MarkersHandle>(null)
   const measureRef = React.useRef<MeasureOverlayHandle>(null)
@@ -210,7 +223,8 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       .map((o) => o.id),
   )
   const tour = useAttractTour({
-    enabled: attract,
+    // A shared view owns the camera. The tour would fly somewhere else.
+    enabled: attract && sharedPose == null,
     ready: status.kind === "ready",
     framedId: state.framedId,
     cardId: state.cardId,
@@ -263,8 +277,28 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
     setMeasurePoints((current) => applyMeasureClick(current, pick.point))
   }, [])
 
+  const appliedPose = React.useRef<string | null>(null)
   React.useEffect(() => {
-    if (status.kind !== "ready") return
+    if (status.kind !== "ready") {
+      // The canvas was rebuilt (a new world, or the detail stream). Fly again once it is up.
+      appliedPose.current = null
+      return
+    }
+    if (sharedPose) {
+      const key = formatCamera(sharedPose)
+      if (appliedPose.current !== key) {
+        appliedPose.current = key
+        homeLock.current = true
+        // Let the doorway paint, then ease. A flight that starts before the first frame is invisible.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (appliedPose.current === key) ref.current?.flyTo(sharedPose)
+          })
+        })
+      }
+      return
+    }
+    appliedPose.current = null
     if (attractRef.current && !state.framedId) return
     const anchor = state.framedId ? stats.get(state.framedId)?.anchor : undefined
     const pose = state.framedId ? (world.poses[state.framedId] ?? (anchor ? poseFromAnchor(anchor) : undefined)) : undefined
@@ -272,7 +306,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       homeLock.current = false
       ref.current?.flyTo(state.cardId ? besideCard(pose, world.cardTurn) : pose)
     } else if (!state.framedId && !homeLock.current) ref.current?.reset()
-  }, [state.framedId, state.cardId, status.kind, stats, world])
+  }, [state.framedId, state.cardId, status.kind, stats, world, sharedPose])
 
   // Highlight: the tour's hold, else what the pointer is on, else the found object, else a single selection.
   // The tour does not select, frame or open the card — the tint is only the hold.

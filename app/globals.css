@@ -221,6 +221,21 @@
   animation: pin-pulse 1.6s ease-out infinite;
 }
 
+@keyframes copy-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.copy-pop {
+  animation: copy-pop 180ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .overlay-pulse,
   .scan-sweep,
@@ -231,6 +246,9 @@
   .pin-pulse {
     transform: scale(2);
     opacity: 0.35;
+  }
+  .copy-pop {
+    animation: none;
   }
   .motion-transition {
     transition: none !important;
