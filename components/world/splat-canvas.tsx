@@ -217,11 +217,20 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       if (!cam || !controls) return null
       const p = cam.getPosition()
       const f = cam.forward
-      const d = 1.5
+      const focus = controls.focusPoint
+      const fx = focus.x - p.x
+      const fy = focus.y - p.y
+      const fz = focus.z - p.z
+      const along = fx * f.x + fy * f.y + fz * f.z
+      const len2 = fx * fx + fy * fy + fz * fz
+      // Orbit looks at its focus, so the link keeps the zoom. Walk leaves that point behind.
+      const useFocus = len2 > 1e-4 && along * along > 0.98 * 0.98 * len2 && along > 0.15 && along < 40
       const r = (n: number) => Math.round(n * 100) / 100
       return {
         position: [r(p.x), r(p.y), r(p.z)],
-        target: [r(p.x + f.x * d), r(p.y + f.y * d), r(p.z + f.z * d)],
+        target: useFocus
+          ? [r(focus.x), r(focus.y), r(focus.z)]
+          : [r(p.x + f.x * 1.5), r(p.y + f.y * 1.5), r(p.z + f.z * 1.5)],
       }
     },
   }))
