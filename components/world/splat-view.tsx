@@ -17,7 +17,9 @@ import { DRAWABLE, useWorld } from "@/components/world/world-provider"
 import { SplatMarkers, type MarkersHandle } from "@/components/world/splat-markers"
 import { MeasureOverlay, type MeasureOverlayHandle } from "@/components/world/measure-overlay"
 import { FloorPath, type FloorPathHandle } from "@/components/world/floor-path"
+import { LoadOutline } from "@/components/world/load-outline"
 import { applyMeasureClick, type MeasureIssue, type MeasurePoint } from "@/lib/measure"
+import { OUTLINE_REVEAL_HOLD_MS, OUTLINE_REVEAL_MS, OUTLINE_REVEAL_REDUCED_MS } from "@/lib/room-outline"
 import type { SurfacePick } from "@/components/world/splat-pick"
 
 // WebGL can't run on the server: load the engine only in the browser, and only when Live 3D is on.
@@ -148,11 +150,18 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   const hoverRef = React.useRef(hover)
   hoverRef.current = hover
   const [status, setStatus] = React.useState<SplatStatus>({ kind: "loading", progress: null })
+  const [holdOutline, setHoldOutline] = React.useState(true)
   const world = worldOf(state.roomId)
   const bounds = roomAabb(PLAN_CALIBRATION[state.roomId]?.world ?? [[-4, -12], [4, 0]], world.home.position[1])
   // Spike: `?splat=lod` streams the level-of-detail version where a room has one; everything else is unchanged.
   const wantLod = React.useSyncExternalStore(subscribeNoop, readLodFlag, () => false)
   const lodWorld = wantLod ? world.splat.lod : undefined
+  const worldSrc = lodWorld ? lodWorld.src : world.splat.src
+  const [seenSrc, setSeenSrc] = React.useState(worldSrc)
+  if (worldSrc !== seenSrc) {
+    setSeenSrc(worldSrc)
+    setStatus({ kind: "loading", progress: null })
+  }
   // Phones get a splat budget; desktops stream the full detail.
   const coarsePointer = React.useSyncExternalStore(
     subscribeNoop,
@@ -164,6 +173,18 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   React.useEffect(() => {
     readyRef.current?.(status.kind === "ready")
     return () => readyRef.current?.(false)
+  }, [status.kind])
+
+  // The drawing stays up until the scan has finished fading over it.
+  React.useEffect(() => {
+    if (status.kind !== "ready") {
+      setHoldOutline(true)
+      return
+    }
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const ms = (reduced ? OUTLINE_REVEAL_REDUCED_MS : OUTLINE_REVEAL_MS) + OUTLINE_REVEAL_HOLD_MS
+    const id = window.setTimeout(() => setHoldOutline(false), ms)
+    return () => window.clearTimeout(id)
   }, [status.kind])
 
   // Lift the still's masks onto the world once it's loaded: which splats belong to which object.
@@ -225,7 +246,8 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
   const tour = useAttractTour({
     // A shared view owns the camera. The tour would fly somewhere else.
     enabled: attract && sharedPose == null,
-    ready: status.kind === "ready",
+    // The tour waits until the scan has finished fading in, so it does not pull the camera during the reveal.
+    ready: status.kind === "ready" && !holdOutline,
     framedId: state.framedId,
     cardId: state.cardId,
     walking: locomotion === "walk",
@@ -284,6 +306,8 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       appliedPose.current = null
       return
     }
+    // Let the scan finish fading over the drawing, then ease.
+    if (holdOutline) return
     if (sharedPose) {
       const key = formatCamera(sharedPose)
       if (appliedPose.current !== key) {
@@ -306,7 +330,7 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
       homeLock.current = false
       ref.current?.flyTo(state.cardId ? besideCard(pose, world.cardTurn) : pose)
     } else if (!state.framedId && !homeLock.current) ref.current?.reset()
-  }, [state.framedId, state.cardId, status.kind, stats, world, sharedPose])
+  }, [state.framedId, state.cardId, status.kind, holdOutline, stats, world, sharedPose])
 
   // Highlight: the tour's hold, else what the pointer is on, else the found object, else a single selection.
   // The tour does not select, frame or open the card — the tint is only the hold.
@@ -340,12 +364,24 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         })
       : null
 
+  const showOutline = status.kind === "loading" || (status.kind === "ready" && holdOutline)
+  const scanSettled = status.kind === "ready" && !holdOutline
+
   return (
     <div className="absolute inset-0 overflow-hidden bg-scene" data-tour={tour.phase}>
+      {showOutline && (
+        <LoadOutline
+          roomId={state.roomId}
+          eyeY={world.home.position[1]}
+          progress={status.kind === "loading" ? status.progress : 1}
+          sizeLabel={(lodWorld ?? world.splat).sizeLabel}
+        />
+      )}
       <SplatCanvas
         ref={ref}
         key={lodWorld ? "lod" : "sog"}
-        src={lodWorld ? lodWorld.src : world.splat.src}
+        src={worldSrc}
+        revealed={status.kind !== "loading"}
         lod={lodWorld ? { splatBudget: coarsePointer ? 1_000_000 : 0 } : undefined}
         home={world.home}
         rotation={world.rotation}
@@ -365,29 +401,15 @@ export const SplatView = React.forwardRef<SplatViewHandle, SplatViewProps>(funct
         }}
       />
 
-      {guide && (
+      {guide && scanSettled && (
         <FloorPath key={guide.key} ref={pathRef} target={guide} floorY={floorY(world.home.position[1])} />
       )}
 
-      {status.kind === "ready" && (
+      {scanSettled && (
         <SplatMarkers ref={markersRef} stats={stats} onPick={onPick} pulseId={tourId} measuring={measuring} />
       )}
 
-      {measuring && <MeasureOverlay ref={measureRef} points={measurePoints} issue={measureIssue} />}
-
-      {status.kind === "loading" && (
-        <div role="status" className="absolute inset-0 grid place-items-center">
-          <div className="flex w-56 flex-col gap-2 rounded-md bg-black/75 px-3 py-2.5 text-label text-scene-ink backdrop-blur-sm">
-            <span>{`Loading 3D world · ${(lodWorld ?? world.splat).sizeLabel}`}</span>
-            <span className="h-1 overflow-hidden rounded-full bg-white/15">
-              <span
-                className="block h-full rounded-full bg-status-active transition-[width] duration-200"
-                style={{ width: `${Math.round((status.progress ?? 0.05) * 100)}%` }}
-              />
-            </span>
-          </div>
-        </div>
-      )}
+      {measuring && scanSettled && <MeasureOverlay ref={measureRef} points={measurePoints} issue={measureIssue} />}
 
       {status.kind === "error" && (
         <div role="alert" className="absolute inset-0 grid place-items-center p-6">

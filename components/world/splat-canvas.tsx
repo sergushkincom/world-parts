@@ -22,6 +22,8 @@ import {
 } from "playcanvas"
 import { CameraControls } from "playcanvas/scripts/esm/camera-controls.mjs"
 import { STILL_PROJECT_GLSL } from "@/lib/splat-mask"
+import { LIVE_FOV_Y } from "@/lib/live-camera"
+import { cn } from "@/lib/utils"
 import type { CameraView } from "@/lib/minimap"
 import type { Aabb, LocomotionMode, Stick } from "@/lib/walk"
 import { useShortcutLearning } from "@/hooks/use-shortcut-learning"
@@ -119,6 +121,11 @@ type Props = {
    * looks on the floor. Write to the DOM here, not to state.
    */
   onFrame?: (project: Project, view: CameraView) => void
+  /**
+   * False while the file is still loading: the canvas stays transparent so the
+   * blueprint underneath can show, then fades the scan in. Defaults to shown.
+   */
+  revealed?: boolean
 }
 
 const v = (p: [number, number, number]) => new Vec3(p[0], p[1], p[2])
@@ -139,6 +146,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     bounds,
     measuring = false,
     onMeasurePick,
+    revealed = true,
   },
   ref,
 ) {
@@ -255,7 +263,7 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     resize()
 
     const camera = new Entity("camera")
-    camera.addComponent("camera", { clearColor: new Color(0.09, 0.09, 0.1), fov: 60, nearClip: 0.01, farClip: 100 })
+    camera.addComponent("camera", { clearColor: new Color(0.09, 0.09, 0.1), fov: LIVE_FOV_Y, nearClip: 0.01, farClip: 100 })
     camera.addComponent("script")
     camera.setPosition(v(homeRef.current.position))
     camera.lookAt(v(homeRef.current.target))
@@ -327,10 +335,23 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     })
 
     const asset = new Asset("world", "gsplat", { url: src })
-    asset.on("progress", (received: number, total: number) =>
-      statusRef.current({ kind: "loading", progress: total ? received / total : null }),
-    )
+    // One render per frame while the file arrives. A fast link can deliver many chunks in a single frame.
+    let loading = true
+    let pending: number | null = null
+    let progressFrame = 0
+    const reportProgress = (received: number, total: number) => {
+      if (!loading) return
+      pending = total > 0 ? received / total : null
+      if (progressFrame) return
+      progressFrame = requestAnimationFrame(() => {
+        progressFrame = 0
+        if (loading) statusRef.current({ kind: "loading", progress: pending })
+      })
+    }
+    asset.on("progress", reportProgress)
     asset.ready(() => {
+      loading = false
+      if (progressFrame) cancelAnimationFrame(progressFrame)
       const splat = new Entity("splat")
       splat.addComponent("gsplat", { asset, unified: true })
       const octree = (splat.gsplat!.resource as { octree?: { lodLevels?: number } } | null)?.octree
@@ -346,9 +367,11 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
       splatRef.current = splat
       statusRef.current({ kind: "ready" })
     })
-    asset.on("error", (err: unknown) =>
-      statusRef.current({ kind: "error", message: typeof err === "string" ? err : "The world could not be loaded." }),
-    )
+    asset.on("error", (err: unknown) => {
+      loading = false
+      if (progressFrame) cancelAnimationFrame(progressFrame)
+      statusRef.current({ kind: "error", message: typeof err === "string" ? err : "The world could not be loaded." })
+    })
     statusRef.current({ kind: "loading", progress: null })
     app.assets.add(asset)
     app.assets.load(asset)
@@ -405,6 +428,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
     window.addEventListener("keydown", onKey)
 
     return () => {
+      loading = false
+      if (progressFrame) cancelAnimationFrame(progressFrame)
       canvas.removeEventListener("pointerdown", firstDrag)
       window.removeEventListener("keydown", onKey)
       app.off("postrender", onUpdate)
@@ -518,13 +543,13 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
         ref={canvasRef}
         data-locomotion={locomotion}
         data-measuring={measuring ? "on" : "off"}
-        className={
-          measuring
-            ? "absolute inset-0 size-full cursor-crosshair touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
-            : locomotion === "walk"
-              ? "absolute inset-0 size-full touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
-              : "absolute inset-0 size-full cursor-grab touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white active:cursor-grabbing"
-        }
+        aria-hidden={revealed ? undefined : true}
+        tabIndex={revealed ? 0 : -1}
+        className={cn(
+          "splat-reveal absolute inset-0 size-full touch-none outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white",
+          revealed ? "opacity-100" : "opacity-0",
+          measuring ? "cursor-crosshair" : locomotion === "walk" ? undefined : "cursor-grab active:cursor-grabbing",
+        )}
         aria-label={
           measuring
             ? "Measuring. Click two points on the scan. Escape clears. Drag still looks around."
@@ -532,9 +557,8 @@ export const SplatCanvas = React.forwardRef<SplatCanvasHandle, Props>(function S
               ? "Live 3D view of the room. Drag to look. When this view is focused, WASD or arrow keys walk at eye height inside the room."
               : "Live 3D view of the room. Drag to look around, scroll or pinch to zoom."
         }
-        tabIndex={0}
       />
-      <WalkPad active={locomotion === "walk"} onStick={onStick} />
+      <WalkPad active={locomotion === "walk" && revealed} onStick={onStick} />
     </>
   )
 })
