@@ -236,6 +236,15 @@
   animation: copy-pop 180ms ease-out;
 }
 
+/* Times match OUTLINE_REVEAL_MS / OUTLINE_REVEAL_REDUCED_MS in lib/room-outline.ts. */
+.splat-reveal {
+  transition: opacity 700ms ease-out;
+}
+
+.outline-draw {
+  transition: stroke-dashoffset 160ms linear;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .overlay-pulse,
   .scan-sweep,
@@ -252,5 +261,11 @@
   }
   .motion-transition {
     transition: none !important;
+  }
+  .splat-reveal {
+    transition-duration: 200ms;
+  }
+  .outline-draw {
+    transition: none;
   }
 }

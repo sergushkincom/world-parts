@@ -16,6 +16,7 @@ Shipped on `main` and on the live site:
 - Search by name or part number. A hit in a scanned room opens that object with its card. A hit elsewhere stays on the plan.
 - Split view: the parts table and the live room side by side, selection in the URL (`?view=split&part=`).
 - Live 3D on PlayCanvas (SOG). Still frame is the default and the fallback. Orbit and Walk. An idle tour when nothing is framed. Measure draws a tape between two points. In Walk, a floor path runs to the selected part.
+- While Live 3D loads, a blueprint of the room draws with the download, then the scan fades over it. Reduced motion is a short fade over the finished outline.
 - Object callouts in Live 3D. The still frame keeps the pill labels.
 - State in the URL (`room`, `object`, `part`, `q`, `view`, `pin`) so a link opens the same place.
 - **Copy view.** In Live 3D, the view pill has a link button. It copies a URL with the current camera and the selected object. Opening that link switches to Live 3D and eases the camera into that view. The button shows **Copied** for a moment. On the still frame the button is greyed and says why. Reduced motion jumps instead of easing.
